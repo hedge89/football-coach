@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c5fd4">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Positions · Coach Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column on phones (picker, players, pitch, tools, coaching card); pitch left + panel right on wide screens */
+:root {
+  --bg: #e7ece6; --surface: #ffffff; --fg: #15221a; --muted: #56675c; --line: #cfd9d0;
+  --kit: #1c5fd4; --kit-ink: #ffffff; --opp: #d7383b; --gold: #f5b800; --gold-ink: #1d1600;
+  --good: #1d8a4b; --warn: #a86a00; --bad: #c03a2b;
+  --grass1: #2f7e3c; --grass2: #2a7436; --chalk: rgba(255,255,255,.82); --ink-draw: #ffe14d;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1410; --surface: #16201a; --fg: #e5ede7; --muted: #93a49a; --line: #2a3a30;
+    --kit: #3f84ff; --good: #43c27a; --warn: #e3a63c; --bad: #f06b5c;
+    --grass1: #266b32; --grass2: #22622d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1410; --surface: #16201a; --fg: #e5ede7; --muted: #93a49a; --line: #2a3a30;
+  --kit: #3f84ff; --good: #43c27a; --warn: #e3a63c; --bad: #f06b5c;
+  --grass1: #266b32; --grass2: #22622d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.app { max-width: 1060px; margin: 0 auto; padding: 12px 16px 28px; }
+.hub { font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: .05em; text-transform: uppercase; text-decoration: none; color: var(--fg); border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 6px 10px; align-self: center; }
+body { margin: 0; padding-top: env(safe-area-inset-top, 0px); }
+.top { display: flex; align-items: baseline; gap: 10px; padding-block: 4px 10px; }
+.top h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .01em; margin: 0; text-transform: uppercase; }
+.formation { font-family: var(--display); font-weight: 700; font-size: 26px; color: var(--kit); }
+.top .sub { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+.layout { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "pick" "chips" "pitch" "tools" "info"; }
+.pick { grid-area: pick; } .chips-wrap { grid-area: chips; } .board { grid-area: pitch; }
+.tools { grid-area: tools; } .info { grid-area: info; }
+@media (min-width: 820px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto auto auto 1fr;
+    grid-template-areas: "pitch pick" "pitch chips" "pitch tools" "pitch info"; align-items: start; column-gap: 24px; }
+}
+
+.label { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.pick-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 6px; }
+select, button { font: inherit; color: inherit; }
+select { width: 100%; min-width: 0; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 10px; font-weight: 600; }
+.icon-btn { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 22px; line-height: 1; cursor: pointer; }
+.brief { margin: 8px 0 0; color: var(--fg); }
+
+.chips { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; }
+.chip { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+  font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: .03em; padding: 0; }
+.chip[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+.chip small { display: block; font-size: 10px; font-weight: 600; opacity: .7; margin-top: -3px; }
+.posname { margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+.pitch-wrap { width: 100%; max-height: 78dvh; aspect-ratio: 112 / 162; margin-inline: auto; max-width: 100%; }
+@media (max-width: 819px) { .pitch-wrap { max-height: 70dvh; } }
+#pitch { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 10px; background: var(--grass2); }
+#pitch.drawing { cursor: crosshair; }
+.stripe-a { fill: var(--grass1); } .stripe-b { fill: var(--grass2); }
+.chalk { fill: none; stroke: var(--chalk); stroke-width: .5; }
+.chalk-dot { fill: var(--chalk); }
+.goal { fill: rgba(255,255,255,.25); stroke: var(--chalk); stroke-width: .5; }
+.tok { cursor: grab; }
+.tok .hit { fill: transparent; }
+.tok .body { stroke: rgba(0,0,0,.35); stroke-width: .35; }
+.us .body { fill: var(--kit); } .us text { fill: var(--kit-ink); }
+.us.sel .body { fill: var(--gold); stroke: #fff; stroke-width: .7; } .us.sel text { fill: var(--gold-ink); }
+.us.sel .halo { fill: none; stroke: var(--gold); stroke-width: .5; opacity: .55; }
+.them .body { fill: var(--opp); }
+.tok text { font-family: var(--display); font-weight: 700; font-size: 3.3px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.ball .body { fill: #fff; stroke: #111; stroke-width: .35; }
+.ball .patch { fill: #111; }
+.locked { cursor: default; }
+.ghost circle { fill: rgba(245,184,0,.18); stroke: var(--gold); stroke-width: .55; stroke-dasharray: 1.4 1; }
+.ghost text { fill: #fff; font-family: var(--display); font-weight: 700; font-size: 2.8px; text-anchor: middle; }
+.lane { stroke-width: .7; stroke-dasharray: 2 1.2; fill: none; }
+.lane.open { stroke: #9dff9d; } .lane.blocked { stroke: #ff8a80; }
+.danger { stroke: rgba(255,255,255,.55); stroke-width: .5; stroke-dasharray: 1 1.4; fill: none; }
+.move-arrow { stroke: var(--gold); stroke-width: .7; fill: none; }
+.arrowhead { fill: var(--gold); }
+.stroke { fill: none; stroke: var(--ink-draw); stroke-width: .9; stroke-linecap: round; stroke-linejoin: round; }
+
+.legend { display: flex; align-items: center; gap: 8px; margin: 8px 2px 0; font-size: 13px; color: var(--muted); min-height: 20px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
+.tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.btn { height: 46px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+  font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: .05em; text-transform: uppercase; }
+.btn.primary { background: var(--kit); border-color: var(--kit); color: var(--kit-ink); grid-column: span 2; }
+.btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn:disabled { opacity: .4; cursor: default; }
+button:focus-visible, select:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.info { display: grid; gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.card h2 { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.1; margin: 0 0 6px; text-wrap: balance; }
+.card p { margin: 0; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 700; font-size: 14px;
+  letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; margin-bottom: 8px; color: #fff; }
+.badge.good { background: var(--good); } .badge.warn { background: var(--warn); } .badge.bad { background: var(--bad); }
+.metres { font-size: 13px; color: var(--muted); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.ask { border-left: 4px solid var(--gold); }
+.hint { font-size: 13px; color: var(--muted); margin-top: 8px !important; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <a class="hub" href="./#plan">‹ Hub</a>
+    <span class="formation">3-1-3-1</span><h1>Shape Trainer</h1>
+    <span class="sub">9-a-side</span>
+  </header>
+
+  <main class="layout">
+    <section class="pick">
+      <div class="label">Scenario</div>
+      <div class="pick-row">
+        <button class="icon-btn" id="prev" aria-label="Previous scenario">‹</button>
+        <select id="scenario" aria-label="Scenario"></select>
+        <button class="icon-btn" id="next" aria-label="Next scenario">›</button>
+      </div>
+      <p class="brief" id="brief"></p>
+    </section>
+
+    <section class="chips-wrap">
+      <div class="label">Player</div>
+      <div class="chips" id="chips"></div>
+      <div class="posname" id="posname"></div>
+    </section>
+
+    <section class="board">
+      <div class="pitch-wrap">
+        <svg id="pitch" viewBox="-6 -6 112 162" aria-label="Pitch. Drag the gold player.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" class="arrowhead"></path>
+            </marker>
+          </defs>
+          <g id="g-grass"></g>
+          <g id="g-lines">
+            <rect class="chalk" x="0" y="0" width="100" height="150"></rect>
+            <line class="chalk" x1="0" y1="75" x2="100" y2="75"></line>
+            <circle class="chalk" cx="50" cy="75" r="12"></circle>
+            <circle class="chalk-dot" cx="50" cy="75" r=".7"></circle>
+            <rect class="chalk" x="22" y="0" width="56" height="22"></rect>
+            <rect class="chalk" x="36" y="0" width="28" height="7"></rect>
+            <circle class="chalk-dot" cx="50" cy="15" r=".6"></circle>
+            <path class="chalk" d="M42.86 22 A10 10 0 0 0 57.14 22"></path>
+            <rect class="chalk" x="22" y="128" width="56" height="22"></rect>
+            <rect class="chalk" x="36" y="143" width="28" height="7"></rect>
+            <circle class="chalk-dot" cx="50" cy="135" r=".6"></circle>
+            <path class="chalk" d="M42.86 128 A10 10 0 0 1 57.14 128"></path>
+            <path class="chalk" d="M2 0 A2 2 0 0 1 0 2 M98 0 A2 2 0 0 0 100 2 M0 148 A2 2 0 0 1 2 150 M100 148 A2 2 0 0 0 98 150"></path>
+            <rect class="goal" x="44" y="-3" width="12" height="3"></rect>
+            <rect class="goal" x="44" y="150" width="12" height="3"></rect>
+          </g>
+          <g id="g-help"></g>
+          <g id="g-ghost"></g>
+          <g id="g-them"></g>
+          <g id="g-us"></g>
+          <g id="g-ball"></g>
+          <g id="g-draw"></g>
+        </svg>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="tools" aria-label="Tools">
+      <button class="btn primary" id="check">Check</button>
+      <button class="btn" id="showme">Show me</button>
+      <button class="btn" id="draw" aria-pressed="false">Draw</button>
+      <button class="btn" id="moveall" aria-pressed="false">Move all</button>
+      <button class="btn" id="reset">Reset</button>
+    </section>
+
+    <section class="info">
+      <div class="card" id="answer"></div>
+      <div class="card ask"><div class="label">Ask them</div><p id="ask"></p></div>
+    </section>
+  </main>
+</div>
+
+<script>
+// Pitch: x 0-100 left to right, y 0 (their goal) to 150 (our goal). We attack upwards.
+const POS = [
+  { k: 'GK', n: 1,  name: 'Goalkeeper' },
+  { k: 'LB', n: 3,  name: 'Left Back' },
+  { k: 'CB', n: 5,  name: 'Centre Back' },
+  { k: 'RB', n: 2,  name: 'Right Back' },
+  { k: 'DM', n: 6,  name: 'Holding Mid' },
+  { k: 'LW', n: 11, name: 'Left Wing' },
+  { k: 'AM', n: 10, name: 'Attacking Mid' },
+  { k: 'RW', n: 7,  name: 'Right Wing' },
+  { k: 'ST', n: 9,  name: 'Striker' },
+];
+const POSMAP = Object.fromEntries(POS.map(p => [p.k, p]));
+// Where the chosen player starts before they move: our basic shape
+const START = { GK: [50, 140], LB: [24, 115], CB: [50, 118], RB: [76, 115], DM: [50, 98], LW: [15, 78], AM: [50, 80], RW: [85, 78], ST: [50, 60] };
+
+const BASE = [
+  { id: 'goalkick', group: 'We have the ball', title: 'Our goal kick', phase: 'att', carrier: 'GK', ball: [50, 142],
+    brief: 'Our goal kick. Their forwards are pushing up to press. We want to play out from the back.',
+    ask: 'Which of our players is free right now? How do you know?',
+    us: {
+      GK: [50, 143, 'You have the ball. Look for the free defender first, and pass to the side with fewer of their players.'],
+      LB: [9, 128, 'Go wide, right out to the touchline, level with the edge of the box. Being wide pulls their forward away from the middle and gives the keeper an easy pass with time to turn.'],
+      CB: [42, 127, 'Stand at the edge of the box, a little to one side of their striker. If you are marked, stay put as the safe pass back. If they go wide, you are free.'],
+      RB: [91, 128, 'Go wide, right out to the touchline, level with the edge of the box. Being wide pulls their forward away from the middle and gives the keeper an easy pass with time to turn.'],
+      DM: [60, 106, 'Find the gap between their forwards and face up the pitch. Check over your shoulder before the ball comes so you can turn and play forward.'],
+      LW: [5, 90, 'Stay high and on the touchline. You make the pitch big, which stretches their defence and opens gaps in the middle.'],
+      AM: [26, 94, 'Drop into the pocket between their midfielders on one side. Be ready for the second pass, from our defender to you.'],
+      RW: [95, 90, 'Stay high and on the touchline. You make the pitch big, which stretches their defence and opens gaps in the middle.'],
+      ST: [50, 74, 'Stay high, right on their last defender. You push their defence back, which gives our midfield more room. If they press hard, the keeper can go long to you.'],
+    },
+    them: [[50, 5], [24, 70], [50, 68], [76, 70], [40, 92], [62, 95], [30, 116], [48, 118], [72, 116]] },
+
+  { id: 'cb-ball', group: 'We have the ball', title: 'Centre back on the ball', phase: 'att', carrier: 'CB', ball: [50, 115],
+    brief: 'Our centre back has the ball. Their striker is closing them down.',
+    ask: 'Can the ball reach you in a straight line? If not, how many steps do you need to take?',
+    us: {
+      GK: [44, 136, 'Stay behind the centre back and a few steps to the side. If they get pressed, you are the safe pass back.'],
+      LB: [10, 108, 'Get wide and a little higher than the centre back. Open your body so you are facing up the pitch when the ball arrives.'],
+      CB: [50, 117, 'You have the ball. If nobody presses, run forward with it. Look for the holding mid first, then the wide defenders.'],
+      RB: [90, 108, 'Get wide and a little higher than the centre back. Open your body so you are facing up the pitch when the ball arrives.'],
+      DM: [62, 100, 'Get out of their striker’s shadow. If their player is standing between you and the ball, take a few steps sideways until there is a clear line.'],
+      LW: [5, 72, 'Stay high and wide. If their defender comes out to you, a gap opens inside for the attacking mid.'],
+      AM: [32, 80, 'Find the gap between their midfield and their defence on the side the ball can reach.'],
+      RW: [95, 72, 'Stay high and wide. If their defender comes out to you, a gap opens inside for the attacking mid.'],
+      ST: [50, 56, 'Stay central against their middle defender. Keep them busy so they cannot step into midfield.'],
+    },
+    them: [[50, 5], [26, 50], [50, 48], [74, 50], [42, 84], [60, 82], [30, 98], [50, 104], [70, 98]] },
+
+  { id: 'att-left', group: 'We have the ball', title: 'Attacking down the left', phase: 'att', carrier: 'LW', ball: [12, 52],
+    brief: 'Our left winger has the ball high up the pitch. Time to create a chance.',
+    ask: 'Where will the cross land? Who needs to be there?',
+    us: {
+      GK: [50, 116, 'Come off your line to the edge of the box or further. If they win it and kick it long, you sweep it up.'],
+      LB: [24, 72, 'Support behind the winger, a few metres inside. Give them a safe pass back if they get stuck.'],
+      CB: [52, 92, 'Push up but stay goal-side of their striker. If we lose the ball, you are the one who stops the counter.'],
+      RB: [72, 94, 'Tuck in towards the middle. The ball is far away, so cover the centre and keep their forward in front of you.'],
+      DM: [40, 66, 'Stay behind the ball and slightly inside. Be ready to switch play or win the ball back if we lose it.'],
+      LW: [12, 52, 'You have the ball. Take on your defender, cross it, or pass inside to the attacking mid.'],
+      AM: [32, 48, 'Get close and inside, in the gap. A short pass to you means you can shoot or slip the striker in.'],
+      RW: [60, 13, 'Get into the box at the back post. Crosses that go over everyone land here.'],
+      ST: [42, 11, 'Attack the near post. Time your run so you arrive as the ball is crossed, not before.'],
+    },
+    them: [[50, 4], [14, 44], [42, 24], [64, 26], [36, 58], [56, 60], [40, 74], [56, 82], [78, 86]] },
+
+  { id: 'their-gk', group: 'They have the ball', title: 'Their goal kick (press)', phase: 'def', carrier: null, ball: [50, 6],
+    brief: 'Their keeper has a goal kick. We press high to win the ball near their goal.',
+    ask: 'If the keeper passes short, who do you press? What if they kick it long?',
+    us: {
+      GK: [50, 124, 'Push up to the edge of your box. Our defenders are high, so you cover the space behind them.'],
+      LB: [24, 86, 'Stay goal-side of their forward on your side, a couple of metres away. If the ball goes long, you get there first.'],
+      CB: [50, 90, 'Stay goal-side of their striker. You are the last line, so don’t get pulled out wide.'],
+      RB: [76, 86, 'Stay goal-side of their forward on your side, a couple of metres away. If the ball goes long, you get there first.'],
+      DM: [42, 54, 'Stay close to their spare midfielder. If they pass through our press, you are the one who stops it.'],
+      LW: [16, 27, 'Wait just outside the box near their wide defender. The moment the keeper passes to them, press and stop them turning.'],
+      AM: [60, 50, 'Mark their midfielder, goal-side, so the keeper cannot pass into the middle.'],
+      RW: [84, 27, 'Wait just outside the box near their wide defender. The moment the keeper passes to them, press and stop them turning.'],
+      ST: [50, 24, 'Stand right in front of their middle defender so the keeper can’t pass to them. Force them to go wide or long.'],
+    },
+    them: [[50, 6], [12, 18], [50, 30], [88, 18], [40, 44], [62, 46], [22, 76], [50, 78], [78, 76]] },
+
+  { id: 'mid-block', group: 'They have the ball', title: 'Their ball in midfield', phase: 'def', carrier: null, ball: [44, 70],
+    brief: 'Their midfielder has the ball in the middle of the pitch. We stay compact.',
+    ask: 'What is the most dangerous pass they could make? Who is blocking it?',
+    us: {
+      GK: [50, 128, 'Stand off your line, near the penalty spot or higher, ready to sweep up any ball over the top.'],
+      LB: [32, 106, 'Squeeze in narrow and stay goal-side of their forward. The ball is in the middle, so that is where the danger is.'],
+      CB: [50, 108, 'Stay central and level with the other two defenders. Keep the line together and don’t drop off on your own.'],
+      RB: [68, 106, 'Squeeze in narrow and stay goal-side of their forward. The ball is in the middle, so that is where the danger is.'],
+      DM: [48, 92, 'Sit in front of the defenders in the middle. Block the pass into their striker’s feet.'],
+      LW: [26, 82, 'Come inside and stay level with the attacking mid, so they can’t pass through the gap between you.'],
+      AM: [44, 76, 'Press the ball. Get goal-side and push them away from the middle.'],
+      RW: [66, 82, 'Come inside and stay level with the attacking mid, so they can’t pass through the gap between you.'],
+      ST: [48, 56, 'Stand in the passing line back to their defenders. If we win the ball, you are ready to go.'],
+    },
+    them: [[50, 6], [22, 42], [50, 38], [78, 42], [44, 70], [66, 64], [30, 98], [50, 100], [72, 96]] },
+
+  { id: 'def-left', group: 'They have the ball', title: 'Defending our left side', phase: 'def', carrier: null, ball: [12, 104],
+    brief: 'Their winger is running at us down our left side.',
+    ask: 'Where is the space they want to cross into? Who is guarding it?',
+    us: {
+      GK: [45, 145, 'Shift towards the ball side but don’t leave the far post open. Stand on the line between the ball and the middle of the goal.'],
+      LB: [15, 110, 'Get goal-side of their winger and press. Show them down the line, never inside.'],
+      CB: [40, 127, 'Slide across towards the ball to cover behind the left back. Stay goal-side of their striker.'],
+      RB: [62, 128, 'Tuck in to guard the middle of the box. The danger is the cross, not your touchline.'],
+      DM: [30, 116, 'Drop to the edge of the box on the ball side. Block the pass cut back to the edge of the box.'],
+      LW: [20, 96, 'Sprint back and help the left back. Two against one wins the ball back.'],
+      AM: [42, 98, 'Get compact on the ball side and close their nearest midfielder.'],
+      RW: [66, 104, 'Tuck in narrow towards the edge of the box. The far side is less dangerous right now.'],
+      ST: [54, 76, 'Stay up near halfway. When we win it, you are our outlet for a quick counter.'],
+    },
+    them: [[50, 6], [24, 54], [50, 46], [76, 54], [30, 90], [54, 86], [12, 104], [44, 120], [68, 118]] },
+
+  { id: 'lost-ball', group: 'Just lost it', title: 'We just lost the ball', phase: 'def', carrier: null, ball: [60, 58],
+    brief: 'We just lost the ball in their half. The next 5 seconds matter most.',
+    ask: 'Do you press or drop back? Why?',
+    us: {
+      GK: [50, 126, 'Get up to the edge of the box. Any long ball over our defence is yours.'],
+      LB: [36, 100, 'Tuck in narrow and take a few steps back. Keep their forwards in front of you.'],
+      CB: [50, 104, 'Drop a few steps and stay central. Slow their striker down and don’t dive in.'],
+      RB: [70, 98, 'Get goal-side of the nearest forward straight away.'],
+      DM: [54, 78, 'Get in front of our defence in the middle and block the direct pass forward. Slow them down.'],
+      LW: [36, 72, 'Sprint back inside to help. Recover towards the middle, not the touchline.'],
+      AM: [54, 63, 'Counter-press! Close down the player on the ball together with the winger.'],
+      RW: [66, 54, 'You were closest when we lost it. Press straight away, hard, for 5 seconds.'],
+      ST: [56, 46, 'Block the pass back to their defenders so they have to play forward into our press.'],
+    },
+    them: [[50, 5], [26, 36], [50, 32], [76, 38], [38, 52], [60, 58], [28, 86], [50, 90], [76, 84]] },
+
+  { id: 'our-corner', group: 'Set pieces', title: 'Our corner from the left', phase: 'att', carrier: 'LW', ball: [1, 1],
+    brief: 'Our corner from the left. Some players attack the ball, some stay back for safety.',
+    ask: 'If they clear it, where does it land? Who is there?',
+    us: {
+      GK: [50, 108, 'Come up to the edge of your box or beyond. If they clear it long, you are the last line.'],
+      LB: [28, 62, 'Stay back near halfway. You stop their quick counter-attack.'],
+      CB: [50, 66, 'Stay back and stick goal-side of their striker. Never leave them alone.'],
+      RB: [74, 62, 'Stay back with the centre back and cover the other side.'],
+      DM: [44, 27, 'Edge of the box. If the clearance falls short, shoot or keep it in.'],
+      LW: [1, 1, 'You are taking the corner. Aim for the space between the six-yard box and the penalty spot.'],
+      AM: [50, 17, 'Arrive late around the penalty spot. Defenders watch the near-post runner, so you get the space.'],
+      RW: [60, 9, 'Back post. Balls that are flicked on or over-hit land here.'],
+      ST: [43, 7, 'Near post. A flick-on from here is really hard for the keeper.'],
+    },
+    them: [[50, 2], [44, 5], [56, 7], [50, 13], [62, 12], [10, 8], [38, 23], [64, 30], [50, 58]] },
+
+  { id: 'their-corner', group: 'Set pieces', title: 'Their corner from our right', phase: 'def', carrier: null, ball: [99, 149],
+    brief: 'Their corner from our right. Everyone has a job.',
+    ask: 'Who is marking the player nobody is looking at?',
+    us: {
+      GK: [48, 147, 'Stand in the middle of the goal, a step towards the back post. Come for anything in the six-yard box and shout “Keeper!”'],
+      LB: [44, 148, 'Guard the back post. Balls that go over everyone end up here.'],
+      CB: [52, 141, 'Mark their biggest attacker, goal-side. Watch the ball and your player.'],
+      RB: [56, 148, 'Stand at the near post. Clear anything that comes in low or near.'],
+      DM: [60, 139, 'Mark their runner, goal-side and close enough to touch.'],
+      LW: [39, 139, 'Stay on the far side of the box and pick up the late runner.'],
+      AM: [50, 128, 'Stand at the edge of the box. Win the second ball, then go!'],
+      RW: [86, 143, 'Stop the short corner. Stand about 10 yards from the taker.'],
+      ST: [50, 96, 'Stay up near halfway. When we clear it, you are who it goes to.'],
+    },
+    them: [[50, 6], [36, 92], [64, 92], [52, 137], [60, 135], [40, 135], [50, 123], [84, 139], [99, 149]] },
+];
+
+// Build the mirrored right-side versions so both wings get practice
+function swapLR(t) { return t.replace(/\b(left|right|Left|Right)\b/g, m => ({ left: 'right', right: 'left', Left: 'Right', Right: 'Left' })[m]); }
+function mirror(s, id, title, brief) {
+  const sw = { LB: 'RB', RB: 'LB', LW: 'RW', RW: 'LW' };
+  const us = {};
+  for (const k in s.us) { const [x, y, t] = s.us[k]; us[sw[k] || k] = [100 - x, y, swapLR(t)]; }
+  return { ...s, id, title, brief, us, carrier: s.carrier ? (sw[s.carrier] || s.carrier) : null,
+    ball: [100 - s.ball[0], s.ball[1]], them: s.them.map(([x, y]) => [100 - x, y]) };
+}
+const byId = Object.fromEntries(BASE.map(s => [s.id, s]));
+const SC = [
+  byId['goalkick'], byId['cb-ball'], byId['att-left'],
+  mirror(byId['att-left'], 'att-right', 'Attacking down the right', 'Our right winger has the ball high up the pitch. Time to create a chance.'),
+  byId['their-gk'], byId['mid-block'], byId['def-left'],
+  mirror(byId['def-left'], 'def-right', 'Defending our right side', 'Their winger is running at us down our right side.'),
+  byId['lost-ball'], byId['our-corner'],
+  mirror(byId['our-corner'], 'our-corner-r', 'Our corner from the right', 'Our corner from the right. Some players attack the ball, some stay back for safety.'),
+  byId['their-corner'],
+  mirror(byId['their-corner'], 'their-corner-l', 'Their corner from our left', 'Their corner from our left. Everyone has a job.'),
+];
+
+const $ = s => document.querySelector(s);
+const svg = $('#pitch');
+const NS = 'http://www.w3.org/2000/svg';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const state = { si: 0, pos: 'LW', cur: null, revealed: false, draw: false, moveAll: false, strokes: [] };
+try {
+  const saved = JSON.parse(localStorage.getItem('shape-trainer') || '{}');
+  if (saved.si >= 0 && saved.si < SC.length) state.si = saved.si;
+  if (POSMAP[saved.pos]) state.pos = saved.pos;
+} catch (e) {}
+function save() { try { localStorage.setItem('shape-trainer', JSON.stringify({ si: state.si, pos: state.pos })); } catch (e) {} }
+
+const sc = () => SC[state.si];
+const ideal = k => sc().us[k];
+
+// Grass stripes
+(function () {
+  let h = '';
+  for (let i = 0; i < 10; i++) h += `<rect class="${i % 2 ? 'stripe-b' : 'stripe-a'}" x="-6" y="${i * 15}" width="112" height="15"></rect>`;
+  h += '<rect class="stripe-b" x="-6" y="-6" width="112" height="6"></rect><rect class="stripe-a" x="-6" y="150" width="112" height="6"></rect>';
+  $('#g-grass').innerHTML = h;
+})();
+
+// Controls
+const sel = $('#scenario');
+(function () {
+  let html = '', group = null;
+  SC.forEach((s, i) => {
+    if (s.group !== group) { if (group) html += '</optgroup>'; group = s.group; html += `<optgroup label="${group}">`; }
+    html += `<option value="${i}">${s.title}</option>`;
+  });
+  sel.innerHTML = html + '</optgroup>';
+})();
+$('#chips').innerHTML = POS.map(p => `<button class="chip" data-k="${p.k}" aria-pressed="false" aria-label="${p.name}">${p.k}<small>${p.n}</small></button>`).join('');
+
+function loadScenario(i) {
+  state.si = (i + SC.length) % SC.length;
+  const s = sc();
+  state.cur = { us: {}, them: s.them.map(p => [...p]), ball: [...s.ball] };
+  for (const p of POS) state.cur.us[p.k] = startFor(p.k);
+  state.revealed = false; state.strokes = [];
+  save(); render();
+}
+function startFor(k) {
+  const s = sc();
+  if (k === state.pos && k !== s.carrier) return [...START[k]];
+  return [s.us[k][0], s.us[k][1]];
+}
+function selectPos(k) {
+  if (k === state.pos) return;
+  const old = state.pos;
+  state.pos = k;
+  state.cur.us[old] = [ideal(old)[0], ideal(old)[1]];
+  state.cur.us[k] = startFor(k);
+  if (sc().carrier === k) state.cur.ball = [...sc().ball];
+  state.revealed = false;
+  save(); render();
+}
+
+function segDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+  let t = L ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L : 0;
+  t = Math.max(0, Math.min(1, t));
+  return [Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy)), t];
+}
+const f = n => Math.round(n * 10) / 10;
+
+function tok(cls, id, [x, y], r, label, extra = '') {
+  return `<g class="tok ${cls}" data-id="${id}" transform="translate(${f(x)} ${f(y)})">${extra}<circle class="hit" r="7"></circle><circle class="body" r="${r}"></circle>${label ? `<text>${label}</text>` : ''}</g>`;
+}
+
+function render() {
+  const s = sc(), c = state.cur, k = state.pos, me = c.us[k];
+  sel.value = state.si;
+  $('#brief').textContent = s.brief;
+  $('#ask').textContent = s.ask;
+  document.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === k));
+  $('#posname').textContent = `${POSMAP[k].name} · #${POSMAP[k].n}`;
+  $('#draw').setAttribute('aria-pressed', state.draw);
+  $('#moveall').setAttribute('aria-pressed', state.moveAll);
+  svg.classList.toggle('drawing', state.draw);
+
+  // Helper lines
+  let help = '', legend = '';
+  if (s.phase === 'att' && k !== s.carrier) {
+    const blocked = c.them.some(o => { const [d, t] = segDist(o, c.ball, me); return d < 3.6 && t > 0.06; });
+    help += `<line class="lane ${blocked ? 'blocked' : 'open'}" x1="${f(c.ball[0])}" y1="${f(c.ball[1])}" x2="${f(me[0])}" y2="${f(me[1])}"></line>`;
+    legend = `<span class="dot" style="background:${blocked ? 'var(--bad)' : 'var(--good)'}"></span>Passing line from the ball: <strong>${blocked ? 'blocked' : 'open'}</strong>`;
+  } else if (s.phase === 'att') {
+    legend = `<span class="dot" style="background:var(--gold)"></span>You have the ball. Who is free?`;
+  } else {
+    help += `<line class="danger" x1="${f(c.ball[0])}" y1="${f(c.ball[1])}" x2="50" y2="150"></line>`;
+    legend = `<span class="dot" style="background:var(--opp)"></span>Dotted line: the ball’s route to our goal. Who is blocking it?`;
+  }
+  const ide = ideal(k);
+  let ghost = '';
+  if (state.revealed) {
+    const dx = ide[0] - me[0], dy = ide[1] - me[1], d = Math.hypot(dx, dy);
+    if (d > 6) {
+      const ex = ide[0] - dx / d * 5.2, ey = ide[1] - dy / d * 5.2, sx = me[0] + dx / d * 5.2, sy = me[1] + dy / d * 5.2;
+      help += `<line class="move-arrow" x1="${f(sx)}" y1="${f(sy)}" x2="${f(ex)}" y2="${f(ey)}" marker-end="url(#arrow)"></line>`;
+    }
+    ghost = `<g class="ghost" transform="translate(${f(ide[0])} ${f(ide[1])})"><circle r="4.6"></circle><text y="-6">HERE</text></g>`;
+  }
+  $('#g-help').innerHTML = help;
+  $('#g-ghost').innerHTML = ghost;
+  $('#legend').innerHTML = legend;
+
+  $('#g-them').innerHTML = c.them.map((p, i) => tok('them' + (state.moveAll ? '' : ' locked'), 'them:' + i, p, 3.7, '')).join('');
+  $('#g-us').innerHTML = POS.filter(p => p.k !== k).map(p => tok('us', 'us:' + p.k, c.us[p.k], 4.1, p.k)).join('')
+    + tok('us sel', 'us:' + k, me, 4.6, k, '<circle class="halo" r="6.6"></circle>');
+  $('#g-ball').innerHTML = tok('ball' + (state.moveAll ? '' : ' locked'), 'ball', c.ball, 1.9, '', '') .replace('</g>', '<circle class="patch" r=".7"></circle></g>');
+  $('#g-draw').innerHTML = state.strokes.map(st => `<path class="stroke" d="M${st.map(p => f(p[0]) + ' ' + f(p[1])).join(' L')}"></path>`).join('');
+
+  // Coaching card
+  const P = POSMAP[k];
+  const a = $('#answer');
+  $('#check').textContent = state.revealed ? 'Hide answer' : 'Check';
+  if (!state.revealed) {
+    a.innerHTML = k === s.carrier
+      ? `<h2>${P.name}: you have the ball</h2><p>Talk through the options. Who is free? Where is the space? Tap Check to see the coaching point.</p>`
+      : `<h2>Where should the ${P.name} be?</h2><p>Drag the gold <strong>${k}</strong> to the spot you would choose, then tap Check.</p><p class="hint">Tap any blue player to switch. Use Draw to sketch runs and passes; Reset clears them.</p>`;
+  } else {
+    const d = Math.hypot(ide[0] - me[0], ide[1] - me[1]);
+    const m = Math.round(d * 0.55);
+    const [cls, word] = k === s.carrier ? ['good', 'On the ball'] : d <= 7 ? ['good', 'Spot on'] : d <= 15 ? ['warn', 'Close'] : ['bad', 'Have another look'];
+    const metres = k === s.carrier ? '' : `<span class="metres">${m <= 2 ? 'right there' : 'about ' + m + ' m away'}</span>`;
+    a.innerHTML = `<div><span class="badge ${cls}">${word}</span>${metres}</div><h2>${P.name}</h2><p>${ide[2]}</p>`;
+  }
+  $('#showme').disabled = k === s.carrier;
+}
+
+// Dragging and drawing
+let drag = null;
+function toPitch(e) {
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return [Math.max(-3, Math.min(103, p.x)), Math.max(-3, Math.min(153, p.y))];
+}
+svg.addEventListener('pointerdown', e => {
+  const p = toPitch(e);
+  if (state.draw) {
+    state.strokes.push([p]); drag = { draw: true };
+    svg.setPointerCapture(e.pointerId); e.preventDefault(); return;
+  }
+  const g = e.target.closest('[data-id]');
+  if (!g) return;
+  const id = g.dataset.id;
+  if (id.startsWith('us:')) {
+    const k = id.slice(3);
+    if (k !== state.pos && !state.moveAll) { selectPos(k); return; }
+  } else if (!state.moveAll) return;
+  const cur = getPt(id);
+  drag = { id, off: [cur[0] - p[0], cur[1] - p[1]] };
+  svg.setPointerCapture(e.pointerId); e.preventDefault();
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const p = toPitch(e);
+  if (drag.draw) { state.strokes[state.strokes.length - 1].push(p); render(); return; }
+  const np = [p[0] + drag.off[0], p[1] + drag.off[1]];
+  const old = getPt(drag.id);
+  // The ball travels with the player who has it
+  if (drag.id === 'us:' + sc().carrier && Math.hypot(old[0] - state.cur.ball[0], old[1] - state.cur.ball[1]) < 4) {
+    state.cur.ball = [state.cur.ball[0] + np[0] - old[0], state.cur.ball[1] + np[1] - old[1]];
+  }
+  setPt(drag.id, np); render();
+});
+const endDrag = () => { drag = null; };
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+
+function getPt(id) {
+  if (id === 'ball') return state.cur.ball;
+  const [t, k] = id.split(':');
+  return t === 'us' ? state.cur.us[k] : state.cur.them[+k];
+}
+function setPt(id, p) {
+  if (id === 'ball') state.cur.ball = p;
+  else { const [t, k] = id.split(':'); if (t === 'us') state.cur.us[k] = p; else state.cur.them[+k] = p; }
+}
+
+function showMe() {
+  const k = state.pos, from = [...state.cur.us[k]], to = ideal(k);
+  state.revealed = true;
+  if (reduceMotion) { state.cur.us[k] = [to[0], to[1]]; render(); return; }
+  const t0 = performance.now(), dur = 650;
+  (function step(now) {
+    const t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 3);
+    state.cur.us[k] = [from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e];
+    render();
+    if (t < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+sel.addEventListener('change', () => loadScenario(+sel.value));
+$('#prev').addEventListener('click', () => loadScenario(state.si - 1));
+$('#next').addEventListener('click', () => loadScenario(state.si + 1));
+$('#chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) selectPos(b.dataset.k); });
+$('#check').addEventListener('click', () => { state.revealed = !state.revealed; render(); });
+$('#showme').addEventListener('click', showMe);
+$('#draw').addEventListener('click', () => {
+  state.draw = !state.draw; render();
+});
+$('#moveall').addEventListener('click', () => { state.moveAll = !state.moveAll; render(); });
+$('#reset').addEventListener('click', () => loadScenario(state.si));
+
+loadScenario(state.si);
+</script>
+
+</body>
+</html>
