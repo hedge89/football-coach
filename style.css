@@ -118,7 +118,26 @@ textarea { height: auto; min-height: 90px; padding: 10px 12px; resize: vertical;
 .d-coach circle { fill: #222; stroke: #fff; stroke-width: .15; } .d-coach text { fill: #fff; }
 .d-wait circle { opacity: .55; }
 .d-ball { fill: #fff; stroke: #111; stroke-width: .1; }
-.d-note { fill: #fff; font-family: var(--body); font-size: 1.15px; font-weight: 600; }
+.d-dim line { stroke: rgba(255,255,255,.75); stroke-width: .12; }
+.d-dimtxt { fill: #fff; paint-order: stroke; stroke: var(--grass1); stroke-width: .7px; font-family: var(--display); font-weight: 700; font-size: 1.1px; letter-spacing: .03em; }
+.d-lead { stroke: #fff; stroke-width: .12; }
+.d-leaddot { fill: #fff; }
+.d-tag { fill: rgba(10,20,14,.82); }
+.d-tagtxt { fill: #fff; font-family: var(--body); font-weight: 600; font-size: 1.05px; dominant-baseline: central; }
+.legend .sw { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.legend .tri { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 11px solid #ff9f1c; display: inline-block; }
+
+/* Animation player */
+.anim { display: grid; gap: 8px; }
+.cap { padding: 10px 14px; min-height: 84px; }
+.cap-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.cap p { margin: 4px 0 0; font-size: 17px; font-weight: 500; line-height: 1.35; }
+.dots { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.dot { width: 26px; height: 8px; border-radius: 99px; border: 0; padding: 0; cursor: pointer; opacity: .35; }
+.dot.p1 { background: var(--kit); } .dot.p2 { background: var(--opp); }
+.dot[aria-current="true"] { opacity: 1; }
+.anim-ctrls { display: grid; grid-template-columns: 1fr 1.3fr 1fr 56px; gap: 6px; }
+.anim-ctrls .btn { padding: 0 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); margin-top: 8px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .lg { width: 22px; height: 0; border-top: 3px solid; }

@@ -12,7 +12,7 @@ try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.
 function persist() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
 if (!store.seeded) {
   store.sessions.push({
-    id: uid(), name: 'Example: Tuesday training', date: nextWeekday(2), start: '18:00',
+    id: uid(), date: nextWeekday(2), start: '18:00',
     blocks: [
       { id: uid(), kind: 'other', title: 'Warm-up: rondos and dynamic stretches', minutes: 10 },
       { id: uid(), kind: 'drill', drillId: 'cross-2v2-transition', minutes: 15 },
@@ -37,10 +37,9 @@ function addMins(hhmm, mins) {
   const [h, m] = hhmm.split(':').map(Number), t = h * 60 + m + mins;
   return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
 }
-function niceDate(iso) {
-  if (!iso) return 'No date';
-  const d = new Date(iso + 'T12:00:00');
-  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+function longDate(iso) {
+  if (!iso) return 'No date set';
+  return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 }
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
@@ -60,57 +59,173 @@ function openSheet(html) {
 }
 function closeSheet() { $('#sheetbg')?.remove(); }
 
-// ---------- Diagram ----------
-function diagram(dg) {
+// ---------- Diagrams ----------
+const VB = '-2 -3.6 35.4 46';
+const r2 = n => Math.round(n * 100) / 100;
+function field() {
   let h = '';
-  for (let i = 0; i < 8; i++) h += `<rect class="${i % 2 ? 'd-stripe-b' : 'd-stripe-a'}" x="-2" y="${i * 5}" width="34" height="5"></rect>`;
-  h += `<rect class="d-stripe-b" x="-2" y="-2" width="34" height="2"></rect><rect class="d-stripe-a" x="-2" y="40" width="34" height="2"></rect>`;
+  for (let i = 0; i < 8; i++) h += `<rect class="${i % 2 ? 'd-stripe-b' : 'd-stripe-a'}" x="-2" y="${i * 5}" width="35.4" height="5"></rect>`;
+  h += `<rect class="d-stripe-b" x="-2" y="-3.6" width="35.4" height="3.6"></rect><rect class="d-stripe-a" x="-2" y="40" width="35.4" height="2.4"></rect>`;
   h += `<rect class="d-chalk" x="0" y="0" width="30" height="40"></rect><line class="d-chalk" x1="0" y1="20" x2="30" y2="20"></line>
     <circle class="d-chalk" cx="15" cy="20" r="4"></circle><rect class="d-chalk" x="8" y="0" width="14" height="7"></rect>
     <rect class="d-chalk" x="8" y="33" width="14" height="7"></rect><rect class="d-goal" x="12.5" y="-1" width="5" height="1"></rect>
     <rect class="d-goal" x="12.5" y="40" width="5" height="1"></rect>`;
-  for (const [x, y] of [[0, 0], [30, 0], [0, 40], [30, 40], [0.2, 19.2], [3.5, 19.2]]) h += `<path class="d-cone" d="M${x - .5} ${y + .4} L${x} ${y - .6} L${x + .5} ${y + .4}z"></path>`;
-  for (const a of dg.arrows || []) {
-    const [[x1, y1], [x2, y2]] = a.p;
-    let d;
-    if (a.k === 'dribble') {
-      const len = Math.hypot(x2 - x1, y2 - y1), n = Math.max(2, Math.floor(len / .9)), ux = (x2 - x1) / len, uy = (y2 - y1) / len;
-      d = `M${x1} ${y1}`;
-      for (let i = 1; i < n; i++) { const t = i / n, o = (i % 2 ? .35 : -.35); d += ` L${x1 + (x2 - x1) * t - uy * o} ${y1 + (y2 - y1) * t + ux * o}`; }
-      d += ` L${x2} ${y2}`;
-    } else d = `M${x1} ${y1} L${x2} ${y2}`;
-    h += `<path class="d-${a.k}" d="${d}" marker-end="url(#m-${a.k})"></path>`;
-    if (a.n) { const mx = x1 + (x2 - x1) * .45, my = y1 + (y2 - y1) * .45; h += `<g class="d-p d-coach" transform="translate(${mx} ${my})"><circle r=".75"></circle><text>${a.n}</text></g>`; }
+  for (const c of [[0, 0], [30, 0], [0, 40], [30, 40]]) h += cone(c);
+  return h;
+}
+const cone = ([x, y]) => `<path class="d-cone" d="M${x - .55} ${y + .45} L${x} ${y - .65} L${x + .55} ${y + .45}z"></path>`;
+const person = (p, [x, y], id = '') => `<g class="d-p d-${p.t}${p.wait ? ' d-wait' : ''}" ${id ? `data-p="${id}"` : ''} transform="translate(${r2(x)} ${r2(y)})"><circle r="1.15"></circle><text>${esc(p.l)}</text></g>`;
+function ballPile([x, y, n]) {
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<circle class="d-ball" cx="${r2(x + (i % 3) * .75)}" cy="${r2(y + Math.floor(i / 3) * .7)}" r=".38"></circle>`;
+  return h;
+}
+
+// Setup picture: starting spots, kit, measurements and labels
+function setupImage(d) {
+  const L = d.layout;
+  let h = field();
+  // measurements
+  h += `<g class="d-dim"><line x1="0" y1="-2.6" x2="30" y2="-2.6"></line><line x1="0" y1="-3.1" x2="0" y2="-2.1"></line><line x1="30" y1="-3.1" x2="30" y2="-2.1"></line>
+    <line x1="31.6" y1="0" x2="31.6" y2="40"></line><line x1="31.1" y1="0" x2="32.1" y2="0"></line><line x1="31.1" y1="40" x2="32.1" y2="40"></line></g>
+    <text class="d-dimtxt" x="24" y="-2.6" text-anchor="middle" dominant-baseline="central">30 yd</text>
+    <text class="d-dimtxt" transform="translate(31.6 27) rotate(-90)" text-anchor="middle" dominant-baseline="central">40 yd</text>`;
+  for (const c of L.cones) h += cone(c);
+  for (const b of L.balls) h += ballPile(b);
+  for (const id in d.start) h += person(d.people[id], d.start[id]);
+  h += `<circle class="d-ball" cx="${d.start[d.anim.ball][0] + .9}" cy="${d.start[d.anim.ball][1] - .9}" r=".5"></circle>`;
+  for (const c of L.callouts) {
+    const w = c.text.length * .58 + 1, [ax, ay] = c.at;
+    h += `<line class="d-lead" x1="${c.to[0]}" y1="${c.to[1]}" x2="${ax}" y2="${ay}"></line><circle class="d-leaddot" cx="${c.to[0]}" cy="${c.to[1]}" r=".28"></circle>
+      <rect class="d-tag" x="${ax}" y="${ay - .95}" width="${r2(w)}" height="1.9" rx=".5"></rect><text class="d-tagtxt" x="${ax + .5}" y="${ay + .05}">${esc(c.text)}</text>`;
   }
-  for (const p of dg.players) {
-    h += `<g class="d-p d-${p.t}${p.wait ? ' d-wait' : ''}" transform="translate(${p.x} ${p.y})"><circle r="1.15"></circle><text>${esc(p.l)}</text></g>`;
-    if (p.ball) h += `<circle class="d-ball" cx="${p.x + 1}" cy="${p.y - 1}" r=".5"></circle>`;
+  return `<svg class="diagram" viewBox="${VB}" role="img" aria-label="Setup diagram for ${esc(d.name)}">${h}</svg>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--kit)"></i>Blue bibs</span><span><i class="sw" style="background:var(--opp)"></i>Red bibs</span>
+      <span><i class="sw" style="background:#f2c94c"></i>Keeper</span><span><i class="sw" style="background:#222"></i>Coach</span>
+      <span><i class="tri"></i>Cone</span><span><i class="sw" style="background:#fff;border:1px solid #111;width:10px;height:10px"></i>Ball</span>
+      <span class="muted">Faded = waiting</span></div>`;
+}
+
+// Animated walkthrough
+function animMarkup(d) {
+  const a = d.anim;
+  return `<div class="anim" data-anim="${d.id}">
+    <svg class="diagram" viewBox="${VB}" role="img" aria-label="Animation of ${esc(d.name)}">${field()}${d.layout.cones.map(cone).join('')}
+      <g class="a-trails"></g>${Object.keys(d.start).map(id => person(d.people[id], d.start[id], id)).join('')}<circle class="d-ball a-ball" r=".55"></circle></svg>
+    <div class="cap card"><div class="cap-top"><span class="phase-tag a-phase"></span><span class="muted small a-count"></span></div><p class="a-text"></p></div>
+    <div class="dots">${a.steps.map((s, i) => `<button class="dot p${s.phase}" data-i="${i}" aria-label="Step ${i + 1}"></button>`).join('')}</div>
+    <div class="anim-ctrls">
+      <button class="btn" data-a="prev" aria-label="Previous step">‹ Step</button>
+      <button class="btn primary" data-a="play">Pause</button>
+      <button class="btn" data-a="next" aria-label="Next step">Step ›</button>
+      <button class="btn" data-a="speed" aria-label="Playback speed">1×</button>
+    </div>
+    <div class="legend"><span><i class="lg" style="border-top-style:dashed;border-color:#8a9a90"></i>Ball</span><span><i class="lg" style="border-color:#e0b400"></i>Run</span><span><i class="lg" style="border-color:#3fbf74"></i>Dribble</span></div>
+  </div>`;
+}
+const anims = [];
+function stopAnims() { while (anims.length) anims.pop().stop(); }
+function mountAnims() {
+  document.querySelectorAll('[data-anim]').forEach(el => anims.push(animate(el, DRILL[el.dataset.anim])));
+}
+function animate(root, d) {
+  const a = d.anim, steps = a.steps, N = steps.length;
+  const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const off = p => [p[0] + .9, p[1] - .9];
+  // Work out where everyone is after each step
+  const st = [{ pos: { ...d.start }, holder: a.ball, bxy: null }];
+  steps.forEach(s => {
+    const prev = st[st.length - 1], n = { pos: { ...prev.pos, ...s.moves }, holder: prev.holder, bxy: prev.bxy };
+    if (typeof s.ball === 'string') { n.holder = s.ball; n.bxy = null; } else if (s.ball) { n.holder = null; n.bxy = s.ball; }
+    st.push(n);
+  });
+  const ballOf = (s, pos) => s.holder ? off(pos[s.holder]) : s.bxy;
+  const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  const els = {}; root.querySelectorAll('[data-p]').forEach(g => els[g.dataset.p] = g);
+  const ball = root.querySelector('.a-ball'), trails = root.querySelector('.a-trails');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let i = 0, t = 0, hold = 900, playing = !reduce, once = false, speed = 1, last = performance.now(), raf, drawnTrail = -1;
+
+  function posAt(k, e) { const f = st[k], g = st[k + 1], out = {}; for (const id in f.pos) out[id] = lerp(f.pos[id], g.pos[id], e); return out; }
+  function frame() {
+    const s = steps[i], e = ease(t), pos = posAt(i, e);
+    for (const id in pos) els[id].setAttribute('transform', `translate(${r2(pos[id][0])} ${r2(pos[id][1])})`);
+    let b;
+    if (s.ball) {
+      const at = s.ballAt || 0, bt = Math.max(0, Math.min(1, (t - at) / (1 - at)));
+      const from = ballOf(st[i], posAt(i, ease(Math.min(t, at)))), to = ballOf(st[i + 1], st[i + 1].pos);
+      b = lerp(from, to, 1 - Math.pow(1 - bt, 2));
+    } else b = ballOf(st[i], pos);
+    ball.setAttribute('cx', r2(b[0])); ball.setAttribute('cy', r2(b[1]));
+    if (drawnTrail !== i) { drawTrails(); drawnTrail = i; }
   }
-  for (const n of dg.notes || []) h += `<text class="d-note" x="${n.x}" y="${n.y}">${esc(n.t)}</text>`;
-  const mk = (id, col) => `<marker id="m-${id}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="${col}"></path></marker>`;
-  return `<svg class="diagram" viewBox="-2 -2 34 44" role="img" aria-label="Drill diagram"><defs>${mk('pass', '#fff')}${mk('run', '#ffe14d')}${mk('dribble', '#9dff9d')}</defs>${h}</svg>
-    <div class="legend"><span><i class="lg" style="border-top-style:dashed;border-color:#8a9a90"></i>Pass</span><span><i class="lg" style="border-color:#e0b400"></i>Run</span><span><i class="lg" style="border-color:#3fbf74;border-top-style:dotted"></i>Dribble</span><span class="muted">Faded = waiting</span></div>`;
+  function drawTrails() {
+    const s = steps[i], f = st[i], g = st[i + 1];
+    let h = '';
+    for (const id in s.moves) {
+      const p = f.pos[id], q = g.pos[id];
+      if (Math.hypot(q[0] - p[0], q[1] - p[1]) < .3) continue;
+      const dribble = f.holder === id && !s.ball;
+      h += `<line class="${dribble ? 'd-dribble' : 'd-run'} a-tr" x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" marker-end="url(#am-${dribble ? 'dribble' : 'run'})"></line>`;
+    }
+    if (s.ball) {
+      const at = s.ballAt || 0, p = ballOf(f, posAt(i, ease(at))), q = ballOf(g, g.pos);
+      h += `<line class="d-pass a-tr" x1="${r2(p[0])}" y1="${r2(p[1])}" x2="${r2(q[0])}" y2="${r2(q[1])}" marker-end="url(#am-pass)"></line>`;
+    }
+    trails.innerHTML = `<defs>${['pass:#fff', 'run:#ffe14d', 'dribble:#9dff9d'].map(m => { const [k, c] = m.split(':'); return `<marker id="am-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="${c}"></path></marker>`; }).join('')}</defs>${h}`;
+    root.querySelector('.a-phase').textContent = s.phase === 1 ? d.phases[0].name : d.phases[1].name;
+    root.querySelector('.a-phase').style.color = s.phase === 1 ? 'var(--kit)' : 'var(--opp)';
+    root.querySelector('.a-count').textContent = `Step ${i + 1} of ${N}`;
+    root.querySelector('.a-text').textContent = s.text;
+    root.querySelectorAll('.dot').forEach((b, k) => b.setAttribute('aria-current', k === i));
+  }
+  function setPlay(p) { playing = p; once = false; root.querySelector('[data-a=play]').textContent = p ? 'Pause' : 'Play'; }
+  function go(k) { i = (k + N) % N; t = reduce ? 1 : 0; hold = 250; drawnTrail = -1; }
+  function loop(now) {
+    const dt = Math.min(100, now - last); last = now;
+    if (playing || once) {
+      if (hold > 0) hold -= dt * speed;
+      else if (t < 1) { t = Math.min(1, t + dt * speed / (steps[i].dur * 1000)); if (t >= 1) { hold = i === N - 1 ? 2200 : 800; if (once) { once = false; } } }
+      else if (playing) { if (i === N - 1) { go(0); hold = 900; } else go(i + 1); }
+    }
+    frame();
+    raf = requestAnimationFrame(loop);
+  }
+  root.addEventListener('click', e => {
+    const b = e.target.closest('[data-a],[data-i]'); if (!b) return;
+    const act = b.dataset.a;
+    if (b.dataset.i) { setPlay(false); go(+b.dataset.i); once = true; }
+    else if (act === 'play') { if (!playing && i === N - 1 && t >= 1) go(0); setPlay(!playing); }
+    else if (act === 'next') { setPlay(false); go(i + 1); once = true; }
+    else if (act === 'prev') { setPlay(false); go(i - 1); once = true; }
+    else if (act === 'speed') { speed = speed === 1 ? .5 : 1; b.textContent = speed === 1 ? '1×' : '½×'; }
+  });
+  if (reduce) { t = 1; root.querySelector('[data-a=play]').textContent = 'Play'; }
+  frame();
+  raf = requestAnimationFrame(loop);
+  return { stop: () => cancelAnimationFrame(raf) };
 }
 
 // ---------- Drill detail ----------
-const ui = { tab: {}, phase: {} };
+const ui = { tab: {} };
 const roleSwatch = { blue: 'background:var(--kit);color:#fff', red: 'background:var(--opp);color:#fff', gk: 'background:#f2c94c;color:#1d1600', coach: 'background:#222;color:#fff' };
 
 function drillView(d, ctx) {
-  const tab = ui.tab[d.id] || 'run', ph = ui.phase[d.id] || 0;
+  const tab = ui.tab[d.id] || 'run';
   const tabs = [['run', 'Run it'], ['setup', 'Setup'], ['coach', 'Coach'], ['about', 'About']];
   let body = '';
   if (tab === 'run') {
     let n = 0;
-    body = `<div class="seg" role="tablist" data-phases="${d.id}">${d.phases.map((p, i) => `<button role="tab" aria-selected="${i === ph}" data-phase="${i}">${esc(p.name.split('·')[1] || p.name)}</button>`).join('')}</div>
-      ${diagram(d.phases[ph].diagram)}
+    body = `${animMarkup(d)}
       ${d.phases.map((p, i) => `<div class="card"><div class="phase-tag" style="color:${i ? 'var(--opp)' : 'var(--kit)'}">${esc(p.name)}</div>
         <ol class="steps" style="margin-top:8px;counter-reset:s ${n}">${p.steps.map(s => (n++, `<li class="${i ? 'p2' : ''}"><span>${esc(s)}</span></li>`)).join('')}</ol></div>`).join('')}
       <div class="card"><div class="label">Rotate</div><p style="margin:0">${esc(d.rotation)}</p></div>`;
   } else if (tab === 'setup') {
-    body = `<div class="card"><div class="label">Setup</div><ol class="steps">${d.setup.map(s => `<li><span>${esc(s)}</span></li>`).join('')}</ol></div>
-      <div class="card"><div class="label">Who’s who</div><div class="stack">${d.roles.map(r => `<div class="role"><span class="swatch" style="${roleSwatch[r.t]}">${esc(r.l)}</span><div><b>${esc(r.name)}</b><br><span class="small">${esc(r.job)}</span></div></div>`).join('')}</div></div>
-      <div class="card"><div class="label">Kit</div><ul class="ticks">${d.equipment.map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul></div>`;
+    body = `<div>${setupImage(d)}</div>
+      <div class="card"><div class="label">Kit</div><ul class="ticks">${d.equipment.map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul></div>
+      <div class="card"><div class="label">Setup</div><ol class="steps">${d.setup.map(s => `<li><span>${esc(s)}</span></li>`).join('')}</ol></div>
+      <div class="card"><div class="label">Who’s who</div><div class="stack">${d.roles.map(r => `<div class="role"><span class="swatch" style="${roleSwatch[r.t]}">${esc(r.l)}</span><div><b>${esc(r.name)}</b><br><span class="small">${esc(r.job)}</span></div></div>`).join('')}</div></div>`;
   } else if (tab === 'coach') {
     body = `<div class="tips">${d.coaching.map(c => `<div class="card tip"><h4>${esc(c.who)}</h4><ul>${c.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>`).join('')}</div>
       <div class="card"><div class="label">Make it harder or easier</div><ul class="ticks">${d.progressions.map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul></div>`;
@@ -132,9 +247,8 @@ function drillView(d, ctx) {
   </div>`;
 }
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-tab]'), p = e.target.closest('[data-phase]');
+  const t = e.target.closest('[data-tab]');
   if (t) { ui.tab[t.parentElement.dataset.tabs] = t.dataset.tab; render(); }
-  if (p) { ui.phase[p.parentElement.dataset.phases] = +p.dataset.phase; render(); }
 });
 
 // ---------- Views ----------
@@ -154,10 +268,10 @@ function viewPlan() {
   const list = [...store.sessions].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   return `<div class="wrap">
     <div class="title-row"><h1>Sessions</h1><span class="spacer"></span><button class="btn primary sm" data-act="new">+ New</button></div>
-    ${store.run && getSession(store.run.sid) ? `<a class="btn gold block" href="#run/${store.run.sid}" style="margin-bottom:12px">Resume: ${esc(getSession(store.run.sid).name)}</a>` : ''}
+    ${store.run && getSession(store.run.sid) ? `<a class="btn gold block" href="#run/${store.run.sid}" style="margin-bottom:12px">Resume: ${longDate(getSession(store.run.sid).date)}</a>` : ''}
     <div class="stack">
-    ${list.length ? list.map(s => `<a class="card list-item" href="#s/${s.id}"><div class="grow"><h3>${esc(s.name || 'Untitled session')}</h3>
-      <p>${niceDate(s.date)}${s.start ? ' · ' + s.start + '–' + addMins(s.start, totalMins(s)) : ''} · ${s.blocks.length} blocks · ${totalMins(s)} min</p></div><span class="chev">›</span></a>`).join('')
+    ${list.length ? list.map(s => `<a class="card list-item" href="#s/${s.id}"><div class="grow"><h3>${longDate(s.date)}</h3>
+      <p>${s.start ? s.start + '–' + addMins(s.start, totalMins(s)) : ''} · ${s.blocks.length} blocks · ${totalMins(s)} min</p></div><span class="chev">›</span></a>`).join('')
       : `<div class="card empty"><p>No sessions yet.</p><p class="muted small">Tap <b>+ New</b> to plan your first one.</p></div>`}
     </div>
     <h2 class="sec">Backup</h2>
@@ -172,7 +286,7 @@ function viewSession(s) {
   return `<div class="wrap">
     <div class="title-row"><a class="back" href="#plan">‹ Sessions</a><span class="spacer"></span><button class="btn sm" data-act="share">Share</button></div>
     <div class="stack">
-      <div class="field"><label class="label" for="s-name">Session name</label><input type="text" id="s-name" value="${esc(s.name)}" placeholder="e.g. Tuesday training"></div>
+      <h1 style="font-family:var(--display);font-size:28px;margin:0;text-transform:uppercase">${longDate(s.date)}</h1>
       <div class="grid2">
         <div class="field"><label class="label" for="s-date">Date</label><input type="date" id="s-date" value="${esc(s.date)}"></div>
         <div class="field"><label class="label" for="s-start">Start</label><input type="time" id="s-start" value="${esc(s.start)}"></div>
@@ -228,7 +342,7 @@ function viewRun(s) {
   }
   const b = s.blocks[r.idx], d = b.kind === 'drill' && DRILL[b.drillId], next = s.blocks[r.idx + 1];
   return `<div class="wrap">
-    <div class="title-row"><a class="back" href="#s/${s.id}">‹ Plan</a><span class="spacer"></span><span class="muted small">${esc(s.name)}</span></div>
+    <div class="title-row"><a class="back" href="#s/${s.id}">‹ Plan</a><span class="spacer"></span><span class="muted small">${longDate(s.date)}</span></div>
     <div class="run-head">
       <div class="label">Block ${r.idx + 1} of ${s.blocks.length}</div>
       <h1 style="font-family:var(--display);font-size:26px;margin:0;text-transform:uppercase;text-wrap:balance">${esc(blockTitle(b))}</h1>
@@ -276,7 +390,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function route() { return (location.hash || '#plan').slice(1).split('/'); }
 function render() {
   const [r, id] = route(), y = window.scrollY, same = render.last === location.hash;
-  clearInterval(tick);
+  clearInterval(tick); stopAnims();
   let html;
   if (r === 's' && getSession(id)) html = viewSession(getSession(id));
   else if (r === 'run' && getSession(id)) html = viewRun(getSession(id));
@@ -288,6 +402,7 @@ function render() {
     const s = getSession(id); updateClock(s); tick = setInterval(() => updateClock(s), 250);
     keepAwake(store.run.running);
   } else keepAwake(false);
+  mountAnims();
   window.scrollTo(0, same ? y : 0);
   render.last = location.hash;
 }
@@ -312,7 +427,7 @@ document.addEventListener('click', e => {
   if (el.dataset.run) return runAction(el.dataset.run);
   switch (el.dataset.act) {
     case 'new': {
-      const n = { id: uid(), name: '', date: new Date().toISOString().slice(0, 10), start: '18:00', blocks: [] };
+      const n = { id: uid(), date: new Date().toISOString().slice(0, 10), start: '18:00', blocks: [] };
       store.sessions.push(n); persist(); location.hash = 's/' + n.id; break;
     }
     case 'add-drill':
@@ -325,7 +440,7 @@ document.addEventListener('click', e => {
     case 'start':
       store.run = { sid: s.id, idx: 0, running: false, startedAt: 0, before: 0 }; persist(); location.hash = 'run/' + s.id; break;
     case 'dup': {
-      const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.name = (s.name || 'Session') + ' (copy)'; c.blocks.forEach(b => b.id = uid());
+      const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.blocks.forEach(b => b.id = uid());
       store.sessions.push(c); persist(); location.hash = 's/' + c.id; toast('Duplicated'); break;
     }
     case 'del':
@@ -335,7 +450,7 @@ document.addEventListener('click', e => {
       store.sessions = store.sessions.filter(x => x.id !== s.id); if (store.run?.sid === s.id) store.run = null; persist(); location.hash = 'plan'; break;
     case 'share': {
       let t = 0;
-      const text = `${s.name || 'Training'} – ${niceDate(s.date)}${s.start ? ' ' + s.start : ''}\n` +
+      const text = `Training – ${longDate(s.date)}${s.start ? ' ' + s.start : ''}\n` +
         s.blocks.map(b => { const st = addMins(s.start, t); t += +b.minutes; return `${st || ''} ${blockTitle(b)} (${b.minutes} min)`.trim(); }).join('\n');
       if (navigator.share) navigator.share({ text }).catch(() => {}); else copyText(text, 'Schedule copied');
       break;
@@ -362,7 +477,6 @@ document.addEventListener('change', e => {
   else return;
   persist(); render();
 });
-document.addEventListener('input', e => { if (e.target.id === 's-name') { cur().name = e.target.value; persist(); } });
 
 function runAction(a) {
   const s = cur(), r = runState(s);
