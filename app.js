@@ -66,7 +66,11 @@ function field(L) {
   let h = '';
   for (let i = 0; i < 8; i++) h += `<rect class="${i % 2 ? 'd-stripe-b' : 'd-stripe-a'}" x="-2" y="${i * 5}" width="35.4" height="5"></rect>`;
   h += `<rect class="d-stripe-b" x="-2" y="-3.6" width="35.4" height="3.6"></rect><rect class="d-stripe-a" x="-2" y="40" width="35.4" height="2.4"></rect>`;
-  if (L.field !== 'grass') {
+  if (L.field === 'goal') {
+    h += `<line class="d-chalk" x1="0" y1="2" x2="30" y2="2"></line><rect class="d-chalk" x="2" y="2" width="26" height="13"></rect>
+      <rect class="d-chalk" x="9" y="2" width="12" height="4"></rect><circle class="d-spot" cx="15" cy="11" r=".3"></circle>
+      <path class="d-chalk" d="M11.8 15 A5 5 0 0 0 18.2 15"></path><rect class="d-goal" x="12.3" y="0.8" width="5.4" height="1.2"></rect>`;
+  } else if (L.field !== 'grass') {
     h += `<rect class="d-chalk" x="0" y="0" width="30" height="40"></rect><line class="d-chalk" x1="0" y1="20" x2="30" y2="20"></line>
       <circle class="d-chalk" cx="15" cy="20" r="4"></circle><rect class="d-chalk" x="8" y="0" width="14" height="7"></rect>
       <rect class="d-chalk" x="8" y="33" width="14" height="7"></rect><rect class="d-goal" x="12.5" y="-1" width="5" height="1"></rect>
@@ -100,17 +104,20 @@ function dims(list) {
   }
   return h;
 }
-const LEGEND = {
-  blue: '<span><i class="sw" style="background:var(--kit)"></i>Blue bibs</span>', red: '<span><i class="sw" style="background:var(--opp)"></i>Red bibs</span>',
-  gk: '<span><i class="sw" style="background:#f2c94c"></i>Keeper</span>', coach: '<span><i class="sw" style="background:#222"></i>Coach</span>',
-};
+const SW = { blue: 'var(--kit)', red: 'var(--opp)', gk: '#f2c94c', coach: '#222' };
+const LEGEND_NAME = { blue: 'Blue bibs', red: 'Red bibs', gk: 'Keeper', coach: 'Coach' };
+const legendItem = (d, t) => `<span><i class="sw" style="background:${SW[t]}"></i>${esc(d.legend?.[t] || LEGEND_NAME[t])}</span>`;
+const initBalls = d => d.anim.balls || (d.anim.ball ? { ball: d.anim.ball } : {});
 
 // Setup picture: starting spots, kit, measurements and labels
 function setupImage(d) {
   const L = d.layout;
   let h = field(L) + dims(L.dims);
   for (const id in d.start) h += person(d.people[id], d.start[id]);
-  if (d.anim.ball) h += `<circle class="d-ball" cx="${d.start[d.anim.ball][0] + .9}" cy="${d.start[d.anim.ball][1] - .9}" r=".5"></circle>`;
+  for (const v of Object.values(initBalls(d))) {
+    const [x, y] = typeof v === 'string' ? [d.start[v][0] + .9, d.start[v][1] - .9] : v;
+    h += `<circle class="d-ball" cx="${x}" cy="${y}" r=".5"></circle>`;
+  }
   for (const c of L.callouts) {
     const w = c.text.length * .58 + 1, [ax, ay] = c.at;
     h += `<line class="d-lead" x1="${c.to[0]}" y1="${c.to[1]}" x2="${ax}" y2="${ay}"></line><circle class="d-leaddot" cx="${c.to[0]}" cy="${c.to[1]}" r=".28"></circle>
@@ -118,19 +125,24 @@ function setupImage(d) {
   }
   const types = [...new Set(Object.values(d.people).map(p => p.t))];
   return `<svg class="diagram" viewBox="${VB}" role="img" aria-label="Setup diagram for ${esc(d.name)}">${h}</svg>
-    <div class="legend">${types.map(t => LEGEND[t]).join('')}
-      ${L.cones?.length || L.field !== 'grass' ? '<span><i class="tri"></i>Cone</span>' : ''}
+    <div class="legend">${types.map(t => legendItem(d, t)).join('')}
+      ${L.cones?.length || !L.field || L.field === 'pitch' ? '<span><i class="tri"></i>Cone</span>' : ''}
       ${L.hurdles ? '<span><i class="lg" style="border-color:#fff;border-top-width:4px;background:transparent"></i>Hurdle</span>' : ''}
-      ${d.anim.ball || L.balls ? '<span><i class="sw" style="background:#fff;border:1px solid #111;width:10px;height:10px"></i>Ball</span>' : ''}
+      ${Object.keys(initBalls(d)).length || L.balls ? '<span><i class="sw" style="background:#fff;border:1px solid #111;width:10px;height:10px"></i>Ball</span>' : ''}
       ${Object.values(d.people).some(p => p.wait) ? '<span class="muted">Faded = waiting</span>' : ''}</div>`;
 }
 
 // Animated walkthrough
+function ballKeys(d) {
+  const ks = new Set(Object.keys(initBalls(d)));
+  for (const s of d.anim.steps) for (const k of Object.keys(s.balls || (s.ball !== undefined ? { ball: 1 } : {}))) ks.add(k);
+  return [...ks];
+}
 function animMarkup(d) {
-  const a = d.anim;
+  const a = d.anim, hasBall = ballKeys(d).length > 0;
   return `<div class="anim" data-anim="${d.id}">
     <svg class="diagram" viewBox="${VB}" role="img" aria-label="Animation of ${esc(d.name)}">${field(d.layout)}
-      <g class="a-trails"></g>${Object.keys(d.start).map(id => person(d.people[id], d.start[id], id)).join('')}<circle class="d-ball a-ball" r=".55"></circle></svg>
+      <g class="a-trails"></g>${Object.keys(d.start).map(id => person(d.people[id], d.start[id], id)).join('')}${ballKeys(d).map(k => `<circle class="d-ball" data-b="${k}" r=".55"></circle>`).join('')}</svg>
     <div class="cap card"><div class="cap-top"><span class="phase-tag a-phase"></span><span class="muted small a-count"></span></div><p class="a-text"></p></div>
     <div class="dots">${a.steps.map((s, i) => `<button class="dot p${s.phase}" data-i="${i}" aria-label="Step ${i + 1}"></button>`).join('')}</div>
     <div class="anim-ctrls">
@@ -139,7 +151,7 @@ function animMarkup(d) {
       <button class="btn" data-a="next" aria-label="Next step">Step ›</button>
       <button class="btn" data-a="speed" aria-label="Playback speed">1×</button>
     </div>
-    <div class="legend">${a.ball ? '<span><i class="lg" style="border-top-style:dashed;border-color:#8a9a90"></i>Ball</span>' : ''}<span><i class="lg" style="border-color:#e0b400"></i>Run</span>${a.ball ? '<span><i class="lg" style="border-color:#3fbf74"></i>Dribble</span>' : ''}</div>
+    <div class="legend">${hasBall ? '<span><i class="lg" style="border-top-style:dashed;border-color:#8a9a90"></i>Ball</span>' : ''}<span><i class="lg" style="border-color:#e0b400"></i>Run</span>${hasBall ? '<span><i class="lg" style="border-color:#3fbf74"></i>Dribble</span>' : ''}</div>
   </div>`;
 }
 const anims = [];
@@ -162,21 +174,25 @@ function animate(root, d) {
   const a = d.anim, steps = a.steps, N = steps.length;
   const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   const off = p => [p[0] + .9, p[1] - .9];
-  // Work out where everyone is after each step; moves can be a point or a path of points
-  const st = [{ pos: { ...d.start }, holder: a.ball || null, bxy: null }], paths = [];
+  const toBall = v => typeof v === 'string' ? { holder: v, bxy: null } : { holder: null, bxy: v };
+  const targets = s => s.balls || (s.ball !== undefined ? { ball: s.ball } : {});
+  // Work out where everyone and every ball is after each step; moves can be a point or a path of points
+  const st = [{ pos: { ...d.start }, balls: Object.fromEntries(Object.entries(initBalls(d)).map(([k, v]) => [k, toBall(v)])) }], paths = [];
   steps.forEach(s => {
-    const prev = st[st.length - 1], n = { pos: { ...prev.pos }, holder: prev.holder, bxy: prev.bxy }, pp = {};
+    const prev = st[st.length - 1], n = { pos: { ...prev.pos }, balls: { ...prev.balls } }, pp = {};
     for (const id in s.moves || {}) {
       const v = s.moves[id];
       if (isPath(v)) { pp[id] = [prev.pos[id], ...v]; n.pos[id] = v[v.length - 1]; } else n.pos[id] = v;
     }
-    if (typeof s.ball === 'string') { n.holder = s.ball; n.bxy = null; } else if (s.ball) { n.holder = null; n.bxy = s.ball; }
+    const tg = targets(s);
+    for (const k in tg) n.balls[k] = toBall(tg[k]);
     st.push(n); paths.push(pp);
   });
-  const ballOf = (s, pos) => s.holder ? off(pos[s.holder]) : s.bxy;
+  const ballOf = (b, pos) => b ? (b.holder ? off(pos[b.holder]) : b.bxy) : null;
   const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
   const els = {}; root.querySelectorAll('[data-p]').forEach(g => els[g.dataset.p] = g);
-  const ball = root.querySelector('.a-ball'), trails = root.querySelector('.a-trails');
+  const bEls = {}; root.querySelectorAll('[data-b]').forEach(c => bEls[c.dataset.b] = c);
+  const trails = root.querySelector('.a-trails');
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let i = 0, t = 0, hold = 900, playing = !reduce, once = false, speed = 1, last = performance.now(), raf, drawnTrail = -1;
 
@@ -185,32 +201,41 @@ function animate(root, d) {
     for (const id in f.pos) out[id] = paths[k][id] ? along(paths[k][id], e) : lerp(f.pos[id], g.pos[id], e);
     return out;
   }
+  function ballFlight(k, key) {
+    const s = steps[k], at = s.ballAt || 0;
+    return [ballOf(st[k].balls[key], posAt(k, ease(at))), ballOf(st[k + 1].balls[key], st[k + 1].pos)];
+  }
   function frame() {
-    const s = steps[i], e = s.linear ? t : ease(t), pos = posAt(i, e);
+    const s = steps[i], e = s.linear ? t : ease(t), pos = posAt(i, e), tg = targets(s);
     const sc = s.pulse && t > 0 && t < 1 ? 1 + .18 * Math.abs(Math.sin(t * s.dur * Math.PI * 1.6)) : 1;
     for (const id in pos) els[id].setAttribute('transform', `translate(${r2(pos[id][0])} ${r2(pos[id][1])})${sc !== 1 && !d.people[id].wait && d.people[id].t !== 'coach' ? ` scale(${r2(sc)})` : ''}`);
-    let b;
-    if (s.ball) {
-      const at = s.ballAt || 0, bt = Math.max(0, Math.min(1, (t - at) / (1 - at)));
-      const from = ballOf(st[i], posAt(i, ease(Math.min(t, at)))), to = ballOf(st[i + 1], st[i + 1].pos);
-      b = lerp(from, to, 1 - Math.pow(1 - bt, 2));
-    } else b = ballOf(st[i], pos);
-    ball.style.display = b ? '' : 'none';
-    if (b) { ball.setAttribute('cx', r2(b[0])); ball.setAttribute('cy', r2(b[1])); }
+    for (const key in bEls) {
+      let b;
+      if (key in tg) {
+        if (s.ballJump) b = t >= 1 ? ballOf(st[i + 1].balls[key], st[i + 1].pos) : null;
+        else {
+          const at = s.ballAt || 0, bt = Math.max(0, Math.min(1, (t - at) / (1 - at)));
+          const fl = ballFlight(i, key), from = t < at ? ballOf(st[i].balls[key], pos) : fl[0];
+          b = lerp(from, fl[1], 1 - Math.pow(1 - bt, 2));
+        }
+      } else b = ballOf(st[i].balls[key], pos);
+      bEls[key].style.display = b ? '' : 'none';
+      if (b) { bEls[key].setAttribute('cx', r2(b[0])); bEls[key].setAttribute('cy', r2(b[1])); }
+    }
     if (drawnTrail !== i) { drawTrails(); drawnTrail = i; }
   }
   function drawTrails() {
-    const s = steps[i], f = st[i], g = st[i + 1];
+    const s = steps[i], f = st[i], g = st[i + 1], tg = targets(s);
     let h = '';
     for (const id in s.moves || {}) {
       const pts = paths[i][id] || [f.pos[id], g.pos[id]];
       if (!paths[i][id] && Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) < .3) continue;
-      const dribble = f.holder === id && !s.ball, k = dribble ? 'dribble' : 'run';
+      const dribble = Object.entries(f.balls).some(([k, b]) => b.holder === id && !(k in tg)), k = dribble ? 'dribble' : 'run';
       h += `<polyline class="d-${k} a-tr" points="${pts.map(p => r2(p[0]) + ',' + r2(p[1])).join(' ')}" marker-end="url(#am-${k})"></polyline>`;
     }
-    if (s.ball) {
-      const at = s.ballAt || 0, p = ballOf(f, posAt(i, ease(at))), q = ballOf(g, g.pos);
-      h += `<line class="d-pass a-tr" x1="${r2(p[0])}" y1="${r2(p[1])}" x2="${r2(q[0])}" y2="${r2(q[1])}" marker-end="url(#am-pass)"></line>`;
+    if (!s.ballJump) for (const key in tg) {
+      const [p, q] = ballFlight(i, key);
+      if (p && q && Math.hypot(q[0] - p[0], q[1] - p[1]) > .5) h += `<line class="d-pass a-tr" x1="${r2(p[0])}" y1="${r2(p[1])}" x2="${r2(q[0])}" y2="${r2(q[1])}" marker-end="url(#am-pass)"></line>`;
     }
     trails.innerHTML = `<defs>${['pass:#fff', 'run:#ffe14d', 'dribble:#9dff9d'].map(m => { const [k, c] = m.split(':'); return `<marker id="am-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="${c}"></path></marker>`; }).join('')}</defs>${h}`;
     const tag = root.querySelector('.a-phase');
@@ -313,6 +338,44 @@ document.addEventListener('click', e => {
 });
 const anyTimer = () => Object.values(timers).some(t => t.running);
 
+// ---------- Penalty shootout scorer ----------
+const so = { kicks: [] };
+const SO_NAMES = ['Blues', 'Reds'];
+function soStatus() {
+  const g = [0, 0], n = [0, 0];
+  so.kicks.forEach(x => { n[x.team]++; if (x.goal) g[x.team]++; });
+  let win = -1;
+  if (n[0] <= 5 && n[1] <= 5) { if (g[0] > g[1] + (5 - n[1])) win = 0; else if (g[1] > g[0] + (5 - n[0])) win = 1; }
+  if (win < 0 && n[0] >= 5 && n[0] === n[1] && g[0] !== g[1]) win = g[0] > g[1] ? 0 : 1;
+  return { g, n, win, next: so.kicks.length % 2 };
+}
+function shootoutMarkup() {
+  const s = soStatus();
+  const row = t => {
+    const mine = so.kicks.filter(x => x.team === t), len = Math.max(5, mine.length + (s.win < 0 && s.next === t ? 1 : 0));
+    let dots = '';
+    for (let i = 0; i < len; i++) { const x = mine[i]; dots += `<span class="so-dot ${x ? (x.goal ? 'g' : 'm') : ''}">${x ? (x.goal ? '\u2713' : '\u2717') : ''}</span>`; }
+    return `<div class="so-row"><b style="color:${t ? 'var(--opp)' : 'var(--kit)'}">${SO_NAMES[t]}</b><div class="so-dots">${dots}</div><b class="so-score">${s.g[t]}</b></div>`;
+  };
+  const status = s.win >= 0 ? `${SO_NAMES[s.win]} win ${s.g[s.win]}\u2013${s.g[1 - s.win]}!`
+    : (s.n[0] >= 5 && s.n[1] >= 5 ? 'Sudden death \u00b7 ' : '') + `${SO_NAMES[s.next]} to take kick ${s.n[s.next] + 1}`;
+  const off = s.win >= 0 ? 'disabled' : '';
+  return `<div class="card so" id="shootout">
+    <div class="row" style="justify-content:space-between"><span class="label" style="margin:0">Shootout scorer</span><span class="small muted">5 each, then sudden death</span></div>
+    ${row(0)}${row(1)}<p class="so-status">${status}</p>
+    <div class="grid2"><button class="btn primary" data-so="goal" ${off}>Goal</button><button class="btn" data-so="miss" ${off}>Miss / saved</button></div>
+    <div class="row" style="margin-top:8px"><button class="btn sm" data-so="undo" ${so.kicks.length ? '' : 'disabled'}>Undo</button><button class="btn sm" data-so="reset">New shootout</button></div>
+  </div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-so]'); if (!b) return;
+  const a = b.dataset.so;
+  if (a === 'goal' || a === 'miss') so.kicks.push({ team: soStatus().next, goal: a === 'goal' });
+  else if (a === 'undo') so.kicks.pop();
+  else so.kicks = [];
+  $('#shootout').outerHTML = shootoutMarkup();
+});
+
 // ---------- Drill detail ----------
 const ui = { tab: {} };
 const roleSwatch = { blue: 'background:var(--kit);color:#fff', red: 'background:var(--opp);color:#fff', gk: 'background:#f2c94c;color:#1d1600', coach: 'background:#222;color:#fff' };
@@ -327,7 +390,7 @@ function drillView(d, ctx) {
       ? d.phases.map((p, i) => `<div class="card"><div class="phase-tag" style="color:${i ? 'var(--opp)' : 'var(--kit)'}">${esc(p.name)}</div>
         <ol class="steps" style="margin-top:8px;counter-reset:s ${n}">${p.steps.map(s => (n++, `<li class="${i ? 'p2' : ''}"><span>${esc(s)}</span></li>`)).join('')}</ol></div>`).join('')
       : `<div class="card"><div class="label">How it works</div><ol class="steps">${d.how.map(s => `<li><span>${esc(s)}</span></li>`).join('')}</ol></div>`;
-    body = `${d.interval ? timerMarkup(d) : ''}${animMarkup(d)}${steps}
+    body = `${d.interval ? timerMarkup(d) : ''}${d.tool === 'shootout' ? shootoutMarkup() : ''}${animMarkup(d)}${steps}
       ${d.interval?.exercises ? `<div class="card"><div class="label">Exercises (in order)</div><ol class="steps">${d.interval.exercises.map(x => `<li><span>${esc(x)}</span></li>`).join('')}</ol></div>` : ''}
       ${d.rotation ? `<div class="card"><div class="label">Rotate</div><p style="margin:0">${esc(d.rotation)}</p></div>` : ''}`;
   } else if (tab === 'setup') {

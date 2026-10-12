@@ -188,3 +188,14 @@ textarea { height: auto; min-height: 90px; padding: 10px 12px; resize: vertical;
 .itimer.work .muted, .itimer.rest .muted, .itimer.work .label, .itimer.rest .label { color: rgba(255,255,255,.85); }
 .itimer.work .bar i, .itimer.rest .bar i { background: #fff; }
 .itimer.work .btn, .itimer.rest .btn { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.4); color: #fff; }
+.d-spot { fill: var(--chalk); }
+
+/* Shootout scorer */
+.so { display: grid; gap: 8px; }
+.so-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 28px; gap: 8px; align-items: center; font-family: var(--display); font-size: 18px; }
+.so-dots { display: flex; flex-wrap: wrap; gap: 4px; }
+.so-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #fff; }
+.so-dot.g { background: var(--good); border-color: var(--good); }
+.so-dot.m { background: var(--bad); border-color: var(--bad); }
+.so-score { font-size: 26px; text-align: right; font-variant-numeric: tabular-nums; }
+.so-status { margin: 0; font-family: var(--display); font-weight: 700; font-size: 20px; text-transform: uppercase; text-align: center; }
