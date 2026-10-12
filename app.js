@@ -62,15 +62,25 @@ function closeSheet() { $('#sheetbg')?.remove(); }
 // ---------- Diagrams ----------
 const VB = '-2 -3.6 35.4 46';
 const r2 = n => Math.round(n * 100) / 100;
-function field() {
+function field(L) {
   let h = '';
   for (let i = 0; i < 8; i++) h += `<rect class="${i % 2 ? 'd-stripe-b' : 'd-stripe-a'}" x="-2" y="${i * 5}" width="35.4" height="5"></rect>`;
   h += `<rect class="d-stripe-b" x="-2" y="-3.6" width="35.4" height="3.6"></rect><rect class="d-stripe-a" x="-2" y="40" width="35.4" height="2.4"></rect>`;
-  h += `<rect class="d-chalk" x="0" y="0" width="30" height="40"></rect><line class="d-chalk" x1="0" y1="20" x2="30" y2="20"></line>
-    <circle class="d-chalk" cx="15" cy="20" r="4"></circle><rect class="d-chalk" x="8" y="0" width="14" height="7"></rect>
-    <rect class="d-chalk" x="8" y="33" width="14" height="7"></rect><rect class="d-goal" x="12.5" y="-1" width="5" height="1"></rect>
-    <rect class="d-goal" x="12.5" y="40" width="5" height="1"></rect>`;
-  for (const c of [[0, 0], [30, 0], [0, 40], [30, 40]]) h += cone(c);
+  if (L.field !== 'grass') {
+    h += `<rect class="d-chalk" x="0" y="0" width="30" height="40"></rect><line class="d-chalk" x1="0" y1="20" x2="30" y2="20"></line>
+      <circle class="d-chalk" cx="15" cy="20" r="4"></circle><rect class="d-chalk" x="8" y="0" width="14" height="7"></rect>
+      <rect class="d-chalk" x="8" y="33" width="14" height="7"></rect><rect class="d-goal" x="12.5" y="-1" width="5" height="1"></rect>
+      <rect class="d-goal" x="12.5" y="40" width="5" height="1"></rect>`;
+    for (const c of [[0, 0], [30, 0], [0, 40], [30, 40]]) h += cone(c);
+  }
+  for (const l of L.lines || []) h += `<line class="d-chalk${l.dash ? ' d-dash' : ''}" x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}"></line>`;
+  if (L.track) h += `<polyline class="d-track" points="${L.track.map(p => p.join(',')).join(' ')}"></polyline>`;
+  for (const c of L.cones || []) h += cone(c);
+  for (const [x, y, w = 2.4, vert] of L.hurdles || []) {
+    const [x1, y1, x2, y2] = vert ? [x, y - w / 2, x, y + w / 2] : [x - w / 2, y, x + w / 2, y];
+    h += `<g class="d-hurdle"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line><circle cx="${x1}" cy="${y1}" r=".3"></circle><circle cx="${x2}" cy="${y2}" r=".3"></circle></g>`;
+  }
+  for (const b of L.balls || []) h += ballPile(b);
   return h;
 }
 const cone = ([x, y]) => `<path class="d-cone" d="M${x - .55} ${y + .45} L${x} ${y - .65} L${x + .55} ${y + .45}z"></path>`;
@@ -80,38 +90,46 @@ function ballPile([x, y, n]) {
   for (let i = 0; i < n; i++) h += `<circle class="d-ball" cx="${r2(x + (i % 3) * .75)}" cy="${r2(y + Math.floor(i / 3) * .7)}" r=".38"></circle>`;
   return h;
 }
+function dims(list) {
+  let h = '';
+  for (const { a, b, label } of list || []) {
+    const vert = a[0] === b[0], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    const tick = vert ? (p => `<line x1="${p[0] - .5}" y1="${p[1]}" x2="${p[0] + .5}" y2="${p[1]}"></line>`) : (p => `<line x1="${p[0]}" y1="${p[1] - .5}" x2="${p[0]}" y2="${p[1] + .5}"></line>`);
+    h += `<g class="d-dim"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"></line>${tick(a)}${tick(b)}</g>
+      <text class="d-dimtxt" ${vert ? `transform="translate(${mx} ${my}) rotate(-90)"` : `x="${mx}" y="${my}"`} text-anchor="middle" dominant-baseline="central">${esc(label)}</text>`;
+  }
+  return h;
+}
+const LEGEND = {
+  blue: '<span><i class="sw" style="background:var(--kit)"></i>Blue bibs</span>', red: '<span><i class="sw" style="background:var(--opp)"></i>Red bibs</span>',
+  gk: '<span><i class="sw" style="background:#f2c94c"></i>Keeper</span>', coach: '<span><i class="sw" style="background:#222"></i>Coach</span>',
+};
 
 // Setup picture: starting spots, kit, measurements and labels
 function setupImage(d) {
   const L = d.layout;
-  let h = field();
-  // measurements
-  h += `<g class="d-dim"><line x1="0" y1="-2.6" x2="30" y2="-2.6"></line><line x1="0" y1="-3.1" x2="0" y2="-2.1"></line><line x1="30" y1="-3.1" x2="30" y2="-2.1"></line>
-    <line x1="31.6" y1="0" x2="31.6" y2="40"></line><line x1="31.1" y1="0" x2="32.1" y2="0"></line><line x1="31.1" y1="40" x2="32.1" y2="40"></line></g>
-    <text class="d-dimtxt" x="24" y="-2.6" text-anchor="middle" dominant-baseline="central">30 yd</text>
-    <text class="d-dimtxt" transform="translate(31.6 27) rotate(-90)" text-anchor="middle" dominant-baseline="central">40 yd</text>`;
-  for (const c of L.cones) h += cone(c);
-  for (const b of L.balls) h += ballPile(b);
+  let h = field(L) + dims(L.dims);
   for (const id in d.start) h += person(d.people[id], d.start[id]);
-  h += `<circle class="d-ball" cx="${d.start[d.anim.ball][0] + .9}" cy="${d.start[d.anim.ball][1] - .9}" r=".5"></circle>`;
+  if (d.anim.ball) h += `<circle class="d-ball" cx="${d.start[d.anim.ball][0] + .9}" cy="${d.start[d.anim.ball][1] - .9}" r=".5"></circle>`;
   for (const c of L.callouts) {
     const w = c.text.length * .58 + 1, [ax, ay] = c.at;
     h += `<line class="d-lead" x1="${c.to[0]}" y1="${c.to[1]}" x2="${ax}" y2="${ay}"></line><circle class="d-leaddot" cx="${c.to[0]}" cy="${c.to[1]}" r=".28"></circle>
       <rect class="d-tag" x="${ax}" y="${ay - .95}" width="${r2(w)}" height="1.9" rx=".5"></rect><text class="d-tagtxt" x="${ax + .5}" y="${ay + .05}">${esc(c.text)}</text>`;
   }
+  const types = [...new Set(Object.values(d.people).map(p => p.t))];
   return `<svg class="diagram" viewBox="${VB}" role="img" aria-label="Setup diagram for ${esc(d.name)}">${h}</svg>
-    <div class="legend">
-      <span><i class="sw" style="background:var(--kit)"></i>Blue bibs</span><span><i class="sw" style="background:var(--opp)"></i>Red bibs</span>
-      <span><i class="sw" style="background:#f2c94c"></i>Keeper</span><span><i class="sw" style="background:#222"></i>Coach</span>
-      <span><i class="tri"></i>Cone</span><span><i class="sw" style="background:#fff;border:1px solid #111;width:10px;height:10px"></i>Ball</span>
-      <span class="muted">Faded = waiting</span></div>`;
+    <div class="legend">${types.map(t => LEGEND[t]).join('')}
+      ${L.cones?.length || L.field !== 'grass' ? '<span><i class="tri"></i>Cone</span>' : ''}
+      ${L.hurdles ? '<span><i class="lg" style="border-color:#fff;border-top-width:4px;background:transparent"></i>Hurdle</span>' : ''}
+      ${d.anim.ball || L.balls ? '<span><i class="sw" style="background:#fff;border:1px solid #111;width:10px;height:10px"></i>Ball</span>' : ''}
+      ${Object.values(d.people).some(p => p.wait) ? '<span class="muted">Faded = waiting</span>' : ''}</div>`;
 }
 
 // Animated walkthrough
 function animMarkup(d) {
   const a = d.anim;
   return `<div class="anim" data-anim="${d.id}">
-    <svg class="diagram" viewBox="${VB}" role="img" aria-label="Animation of ${esc(d.name)}">${field()}${d.layout.cones.map(cone).join('')}
+    <svg class="diagram" viewBox="${VB}" role="img" aria-label="Animation of ${esc(d.name)}">${field(d.layout)}
       <g class="a-trails"></g>${Object.keys(d.start).map(id => person(d.people[id], d.start[id], id)).join('')}<circle class="d-ball a-ball" r=".55"></circle></svg>
     <div class="cap card"><div class="cap-top"><span class="phase-tag a-phase"></span><span class="muted small a-count"></span></div><p class="a-text"></p></div>
     <div class="dots">${a.steps.map((s, i) => `<button class="dot p${s.phase}" data-i="${i}" aria-label="Step ${i + 1}"></button>`).join('')}</div>
@@ -121,7 +139,7 @@ function animMarkup(d) {
       <button class="btn" data-a="next" aria-label="Next step">Step ›</button>
       <button class="btn" data-a="speed" aria-label="Playback speed">1×</button>
     </div>
-    <div class="legend"><span><i class="lg" style="border-top-style:dashed;border-color:#8a9a90"></i>Ball</span><span><i class="lg" style="border-color:#e0b400"></i>Run</span><span><i class="lg" style="border-color:#3fbf74"></i>Dribble</span></div>
+    <div class="legend">${a.ball ? '<span><i class="lg" style="border-top-style:dashed;border-color:#8a9a90"></i>Ball</span>' : ''}<span><i class="lg" style="border-color:#e0b400"></i>Run</span>${a.ball ? '<span><i class="lg" style="border-color:#3fbf74"></i>Dribble</span>' : ''}</div>
   </div>`;
 }
 const anims = [];
@@ -129,16 +147,31 @@ function stopAnims() { while (anims.length) anims.pop().stop(); }
 function mountAnims() {
   document.querySelectorAll('[data-anim]').forEach(el => anims.push(animate(el, DRILL[el.dataset.anim])));
 }
+const isPath = v => Array.isArray(v[0]);
+function along(pts, e) {
+  const seg = []; let tot = 0;
+  for (let k = 1; k < pts.length; k++) { const l = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); seg.push(l); tot += l; }
+  let d = e * tot;
+  for (let k = 0; k < seg.length; k++) {
+    if (d <= seg[k] || k === seg.length - 1) { const f = seg[k] ? Math.min(1, d / seg[k]) : 1; return [pts[k][0] + (pts[k + 1][0] - pts[k][0]) * f, pts[k][1] + (pts[k + 1][1] - pts[k][1]) * f]; }
+    d -= seg[k];
+  }
+  return pts[pts.length - 1];
+}
 function animate(root, d) {
   const a = d.anim, steps = a.steps, N = steps.length;
   const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   const off = p => [p[0] + .9, p[1] - .9];
-  // Work out where everyone is after each step
-  const st = [{ pos: { ...d.start }, holder: a.ball, bxy: null }];
+  // Work out where everyone is after each step; moves can be a point or a path of points
+  const st = [{ pos: { ...d.start }, holder: a.ball || null, bxy: null }], paths = [];
   steps.forEach(s => {
-    const prev = st[st.length - 1], n = { pos: { ...prev.pos, ...s.moves }, holder: prev.holder, bxy: prev.bxy };
+    const prev = st[st.length - 1], n = { pos: { ...prev.pos }, holder: prev.holder, bxy: prev.bxy }, pp = {};
+    for (const id in s.moves || {}) {
+      const v = s.moves[id];
+      if (isPath(v)) { pp[id] = [prev.pos[id], ...v]; n.pos[id] = v[v.length - 1]; } else n.pos[id] = v;
+    }
     if (typeof s.ball === 'string') { n.holder = s.ball; n.bxy = null; } else if (s.ball) { n.holder = null; n.bxy = s.ball; }
-    st.push(n);
+    st.push(n); paths.push(pp);
   });
   const ballOf = (s, pos) => s.holder ? off(pos[s.holder]) : s.bxy;
   const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
@@ -147,35 +180,42 @@ function animate(root, d) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let i = 0, t = 0, hold = 900, playing = !reduce, once = false, speed = 1, last = performance.now(), raf, drawnTrail = -1;
 
-  function posAt(k, e) { const f = st[k], g = st[k + 1], out = {}; for (const id in f.pos) out[id] = lerp(f.pos[id], g.pos[id], e); return out; }
+  function posAt(k, e) {
+    const f = st[k], g = st[k + 1], out = {};
+    for (const id in f.pos) out[id] = paths[k][id] ? along(paths[k][id], e) : lerp(f.pos[id], g.pos[id], e);
+    return out;
+  }
   function frame() {
-    const s = steps[i], e = ease(t), pos = posAt(i, e);
-    for (const id in pos) els[id].setAttribute('transform', `translate(${r2(pos[id][0])} ${r2(pos[id][1])})`);
+    const s = steps[i], e = s.linear ? t : ease(t), pos = posAt(i, e);
+    const sc = s.pulse && t > 0 && t < 1 ? 1 + .18 * Math.abs(Math.sin(t * s.dur * Math.PI * 1.6)) : 1;
+    for (const id in pos) els[id].setAttribute('transform', `translate(${r2(pos[id][0])} ${r2(pos[id][1])})${sc !== 1 && !d.people[id].wait && d.people[id].t !== 'coach' ? ` scale(${r2(sc)})` : ''}`);
     let b;
     if (s.ball) {
       const at = s.ballAt || 0, bt = Math.max(0, Math.min(1, (t - at) / (1 - at)));
       const from = ballOf(st[i], posAt(i, ease(Math.min(t, at)))), to = ballOf(st[i + 1], st[i + 1].pos);
       b = lerp(from, to, 1 - Math.pow(1 - bt, 2));
     } else b = ballOf(st[i], pos);
-    ball.setAttribute('cx', r2(b[0])); ball.setAttribute('cy', r2(b[1]));
+    ball.style.display = b ? '' : 'none';
+    if (b) { ball.setAttribute('cx', r2(b[0])); ball.setAttribute('cy', r2(b[1])); }
     if (drawnTrail !== i) { drawTrails(); drawnTrail = i; }
   }
   function drawTrails() {
     const s = steps[i], f = st[i], g = st[i + 1];
     let h = '';
-    for (const id in s.moves) {
-      const p = f.pos[id], q = g.pos[id];
-      if (Math.hypot(q[0] - p[0], q[1] - p[1]) < .3) continue;
-      const dribble = f.holder === id && !s.ball;
-      h += `<line class="${dribble ? 'd-dribble' : 'd-run'} a-tr" x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" marker-end="url(#am-${dribble ? 'dribble' : 'run'})"></line>`;
+    for (const id in s.moves || {}) {
+      const pts = paths[i][id] || [f.pos[id], g.pos[id]];
+      if (!paths[i][id] && Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) < .3) continue;
+      const dribble = f.holder === id && !s.ball, k = dribble ? 'dribble' : 'run';
+      h += `<polyline class="d-${k} a-tr" points="${pts.map(p => r2(p[0]) + ',' + r2(p[1])).join(' ')}" marker-end="url(#am-${k})"></polyline>`;
     }
     if (s.ball) {
       const at = s.ballAt || 0, p = ballOf(f, posAt(i, ease(at))), q = ballOf(g, g.pos);
       h += `<line class="d-pass a-tr" x1="${r2(p[0])}" y1="${r2(p[1])}" x2="${r2(q[0])}" y2="${r2(q[1])}" marker-end="url(#am-pass)"></line>`;
     }
     trails.innerHTML = `<defs>${['pass:#fff', 'run:#ffe14d', 'dribble:#9dff9d'].map(m => { const [k, c] = m.split(':'); return `<marker id="am-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="${c}"></path></marker>`; }).join('')}</defs>${h}`;
-    root.querySelector('.a-phase').textContent = s.phase === 1 ? d.phases[0].name : d.phases[1].name;
-    root.querySelector('.a-phase').style.color = s.phase === 1 ? 'var(--kit)' : 'var(--opp)';
+    const tag = root.querySelector('.a-phase');
+    tag.textContent = s.tag || d.phases?.[s.phase - 1]?.name || '';
+    tag.style.color = s.phase === 1 ? 'var(--kit)' : 'var(--opp)';
     root.querySelector('.a-count').textContent = `Step ${i + 1} of ${N}`;
     root.querySelector('.a-text').textContent = s.text;
     root.querySelectorAll('.dot').forEach((b, k) => b.setAttribute('aria-current', k === i));
@@ -186,7 +226,7 @@ function animate(root, d) {
     const dt = Math.min(100, now - last); last = now;
     if (playing || once) {
       if (hold > 0) hold -= dt * speed;
-      else if (t < 1) { t = Math.min(1, t + dt * speed / (steps[i].dur * 1000)); if (t >= 1) { hold = i === N - 1 ? 2200 : 800; if (once) { once = false; } } }
+      else if (t < 1) { t = Math.min(1, t + dt * speed / (steps[i].dur * 1000)); if (t >= 1) { hold = i === N - 1 ? 2200 : 800; once = false; } }
       else if (playing) { if (i === N - 1) { go(0); hold = 900; } else go(i + 1); }
     }
     frame();
@@ -207,6 +247,72 @@ function animate(root, d) {
   return { stop: () => cancelAnimationFrame(raf) };
 }
 
+// ---------- Interval timer (fitness drills) ----------
+const timers = {};
+function timeline(iv) {
+  const out = [];
+  for (let r = 0; r < iv.rounds; r++) {
+    iv.segments.forEach((s, k) => {
+      if (r === iv.rounds - 1 && s.skipLast) return;
+      out.push({ label: s.label.replace('{ex}', iv.exercises ? iv.exercises[r % iv.exercises.length] : ''), secs: s.secs, work: !!s.work, round: r + 1 });
+    });
+  }
+  return out;
+}
+const fmt = ms => { const s = Math.ceil(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+function timerMarkup(d) {
+  const iv = d.interval, tl = timeline(iv), total = tl.reduce((a, s) => a + s.secs, 0);
+  return `<div class="itimer card" data-timer="${d.id}">
+    <div class="row" style="justify-content:space-between"><span class="label" style="margin:0">Interval timer</span><span class="muted small">${iv.rounds} rounds · ${Math.round(total / 60)} min</span></div>
+    <div class="it-label">Ready</div><div class="it-clock">--:--</div>
+    <div class="it-sub muted"></div>
+    <div class="bar"><i class="it-bar"></i></div>
+    <div class="grid2" style="margin-top:10px"><button class="btn primary" data-t="toggle">Start</button><button class="btn" data-t="reset">Reset</button></div>
+  </div>`;
+}
+function timerUpdate(el) {
+  const d = DRILL[el.dataset.timer], tl = timeline(d.interval), T = timers[d.id] || (timers[d.id] = { running: false, startedAt: 0, before: 0, seg: -1, beep: -1 });
+  const el2 = T.before + (T.running ? Date.now() - T.startedAt : 0);
+  let acc = 0, k = 0;
+  while (k < tl.length && el2 >= acc + tl[k].secs * 1000) { acc += tl[k].secs * 1000; k++; }
+  const q = s => el.querySelector(s);
+  el.classList.toggle('work', k < tl.length && tl[k].work && (T.running || el2 > 0));
+  el.classList.toggle('rest', k < tl.length && !tl[k].work && (T.running || el2 > 0));
+  if (k >= tl.length) {
+    q('.it-label').textContent = 'Done!'; q('.it-clock').textContent = '0:00'; q('.it-sub').textContent = 'Great work. Grab a drink.'; q('.it-bar').style.width = '100%';
+    if (T.running) { T.running = false; T.before = el2; buzz(); keepAwake(anyAwake()); q('[data-t=toggle]').textContent = 'Start'; }
+    return;
+  }
+  const seg = tl[k], left = acc + seg.secs * 1000 - el2;
+  q('.it-label').textContent = (T.running || el2 > 0) ? seg.label : 'Ready: ' + seg.label;
+  q('.it-clock').textContent = fmt(left);
+  const next = tl[k + 1];
+  q('.it-sub').textContent = `Round ${seg.round} of ${d.interval.rounds}` + (next ? ` · Next: ${next.label}` : ' · Last one!');
+  q('.it-bar').style.width = (100 - left / (seg.secs * 10)) + '%';
+  q('[data-t=toggle]').textContent = T.running ? 'Pause' : el2 > 0 ? 'Resume' : 'Start';
+  if (T.running) {
+    if (T.seg !== k) { if (T.seg >= 0) beep(2, 660); T.seg = k; }
+    const s = Math.ceil(left / 1000);
+    if (s <= 3 && s >= 1 && T.beep !== k * 10 + s) { T.beep = k * 10 + s; beep(1, 880, .12); }
+  }
+}
+setInterval(() => document.querySelectorAll('[data-timer]').forEach(timerUpdate), 200);
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-t]'); if (!b) return;
+  const el = b.closest('[data-timer]'), id = el.dataset.timer, T = timers[id] || (timers[id] = { running: false, startedAt: 0, before: 0, seg: -1, beep: -1 });
+  if (b.dataset.t === 'toggle') {
+    if (T.running) { T.before += Date.now() - T.startedAt; T.running = false; }
+    else {
+      const tl = timeline(DRILL[id].interval), total = tl.reduce((a, s) => a + s.secs * 1000, 0);
+      if (T.before >= total) { T.before = 0; T.seg = -1; }
+      T.startedAt = Date.now(); T.running = true; unlockAudio(); beep(1, 660, .25);
+    }
+  } else { T.running = false; T.before = 0; T.seg = -1; T.beep = -1; }
+  keepAwake(anyAwake());
+  timerUpdate(el);
+});
+const anyTimer = () => Object.values(timers).some(t => t.running);
+
 // ---------- Drill detail ----------
 const ui = { tab: {} };
 const roleSwatch = { blue: 'background:var(--kit);color:#fff', red: 'background:var(--opp);color:#fff', gk: 'background:#f2c94c;color:#1d1600', coach: 'background:#222;color:#fff' };
@@ -217,23 +323,26 @@ function drillView(d, ctx) {
   let body = '';
   if (tab === 'run') {
     let n = 0;
-    body = `${animMarkup(d)}
-      ${d.phases.map((p, i) => `<div class="card"><div class="phase-tag" style="color:${i ? 'var(--opp)' : 'var(--kit)'}">${esc(p.name)}</div>
-        <ol class="steps" style="margin-top:8px;counter-reset:s ${n}">${p.steps.map(s => (n++, `<li class="${i ? 'p2' : ''}"><span>${esc(s)}</span></li>`)).join('')}</ol></div>`).join('')}
-      <div class="card"><div class="label">Rotate</div><p style="margin:0">${esc(d.rotation)}</p></div>`;
+    const steps = d.phases
+      ? d.phases.map((p, i) => `<div class="card"><div class="phase-tag" style="color:${i ? 'var(--opp)' : 'var(--kit)'}">${esc(p.name)}</div>
+        <ol class="steps" style="margin-top:8px;counter-reset:s ${n}">${p.steps.map(s => (n++, `<li class="${i ? 'p2' : ''}"><span>${esc(s)}</span></li>`)).join('')}</ol></div>`).join('')
+      : `<div class="card"><div class="label">How it works</div><ol class="steps">${d.how.map(s => `<li><span>${esc(s)}</span></li>`).join('')}</ol></div>`;
+    body = `${d.interval ? timerMarkup(d) : ''}${animMarkup(d)}${steps}
+      ${d.interval?.exercises ? `<div class="card"><div class="label">Exercises (in order)</div><ol class="steps">${d.interval.exercises.map(x => `<li><span>${esc(x)}</span></li>`).join('')}</ol></div>` : ''}
+      ${d.rotation ? `<div class="card"><div class="label">Rotate</div><p style="margin:0">${esc(d.rotation)}</p></div>` : ''}`;
   } else if (tab === 'setup') {
     body = `<div>${setupImage(d)}</div>
       <div class="card"><div class="label">Kit</div><ul class="ticks">${d.equipment.map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul></div>
       <div class="card"><div class="label">Setup</div><ol class="steps">${d.setup.map(s => `<li><span>${esc(s)}</span></li>`).join('')}</ol></div>
-      <div class="card"><div class="label">Who’s who</div><div class="stack">${d.roles.map(r => `<div class="role"><span class="swatch" style="${roleSwatch[r.t]}">${esc(r.l)}</span><div><b>${esc(r.name)}</b><br><span class="small">${esc(r.job)}</span></div></div>`).join('')}</div></div>`;
+      ${d.roles ? `<div class="card"><div class="label">Who’s who</div><div class="stack">${d.roles.map(r => `<div class="role"><span class="swatch" style="${roleSwatch[r.t]}">${esc(r.l)}</span><div><b>${esc(r.name)}</b><br><span class="small">${esc(r.job)}</span></div></div>`).join('')}</div></div>` : ''}`;
   } else if (tab === 'coach') {
     body = `<div class="tips">${d.coaching.map(c => `<div class="card tip"><h4>${esc(c.who)}</h4><ul>${c.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>`).join('')}</div>
       <div class="card"><div class="label">Make it harder or easier</div><ul class="ticks">${d.progressions.map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul></div>`;
   } else {
     body = `<div class="card"><p style="margin:0 0 8px">${esc(d.summary)}</p><p class="muted small" style="margin:0">${esc(d.why)}</p></div>
-      <div class="card quote"><div class="label">From the video</div><div class="stack small">${d.fromVideo.map(q => `<p style="margin:0">“${esc(q)}”</p>`).join('')}</div>
-      <p class="small" style="margin:10px 0 0"><a href="${esc(d.source.url)}" target="_blank" rel="noopener">Watch at ${esc(d.source.at)}: ${esc(d.source.title)}</a> (${esc(d.source.channel)})</p></div>
-      <p class="muted small">${esc(d.note)}</p>`;
+      ${d.fromVideo ? `<div class="card quote"><div class="label">From the video</div><div class="stack small">${d.fromVideo.map(q => `<p style="margin:0">“${esc(q)}”</p>`).join('')}</div></div>` : ''}
+      ${d.sources ? `<div class="card"><div class="label">Sources</div><ul class="ticks small">${d.sources.map(s => `<li><span><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>${s.at ? ` (from ${esc(s.at)})` : ''}</span></li>`).join('')}</ul></div>` : ''}
+      ${d.note ? `<p class="muted small">${esc(d.note)}</p>` : ''}`;
   }
   return `<div class="stack">
     ${ctx === 'run' ? '' : `<p style="margin:0">${esc(d.summary)}</p>`}
@@ -370,21 +479,29 @@ function updateClock(s) {
   if (over && r.running && beeped !== r.idx) { beeped = r.idx; buzz(); }
 }
 let audio;
-function buzz() {
-  try { navigator.vibrate?.([300, 150, 300, 150, 300]); } catch (e) {}
+function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
+function beep(n = 1, freq = 880, len = .3) {
   try {
-    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-    [0, .35, .7].forEach(t => { const o = audio.createOscillator(), g = audio.createGain(); o.frequency.value = 880; o.connect(g); g.connect(audio.destination);
-      g.gain.setValueAtTime(.4, audio.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, audio.currentTime + t + .3); o.start(audio.currentTime + t); o.stop(audio.currentTime + t + .3); });
+    unlockAudio();
+    for (let k = 0; k < n; k++) {
+      const t = audio.currentTime + k * (len + .12), o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
+      g.gain.setValueAtTime(.4, t); g.gain.exponentialRampToValueAtTime(.001, t + len); o.start(t); o.stop(t + len);
+    }
   } catch (e) {}
 }
+function buzz() {
+  try { navigator.vibrate?.([300, 150, 300, 150, 300]); } catch (e) {}
+  beep(3);
+}
+const anyAwake = () => (route()[0] === 'run' && store.run?.running) || anyTimer();
 async function keepAwake(on) {
   try {
     if (on && !wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); }
     if (!on && wake) { await wake.release(); wake = null; }
   } catch (e) {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && store.run?.running) keepAwake(true); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && anyAwake()) keepAwake(true); });
 
 // ---------- Router ----------
 function route() { return (location.hash || '#plan').slice(1).split('/'); }
@@ -400,9 +517,10 @@ function render() {
   $('#app').innerHTML = html;
   if (r === 'run' && getSession(id)) {
     const s = getSession(id); updateClock(s); tick = setInterval(() => updateClock(s), 250);
-    keepAwake(store.run.running);
-  } else keepAwake(false);
+  }
+  keepAwake(anyAwake());
   mountAnims();
+  document.querySelectorAll('[data-timer]').forEach(timerUpdate);
   window.scrollTo(0, same ? y : 0);
   render.last = location.hash;
 }
@@ -482,7 +600,7 @@ function runAction(a) {
   const s = cur(), r = runState(s);
   if (a === 'toggle') {
     if (r.running) { r.before = elapsed(r); r.running = false; }
-    else { r.startedAt = Date.now(); r.running = true; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
+    else { r.startedAt = Date.now(); r.running = true; unlockAudio(); }
   } else if (a === 'next' || a === 'prev') {
     r.idx = Math.max(0, r.idx + (a === 'next' ? 1 : -1)); r.before = 0; r.startedAt = Date.now();
     if (r.idx >= s.blocks.length) r.running = false;

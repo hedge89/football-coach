@@ -171,3 +171,20 @@ textarea { height: auto; min-height: 90px; padding: 10px 12px; resize: vertical;
   padding: 10px 16px; border-radius: 10px; z-index: 30; font-weight: 600; }
 .confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Track, hurdles, dashed lines */
+.d-dash { stroke-dasharray: .8 .6; }
+.d-track { fill: none; stroke: rgba(255,255,255,.35); stroke-width: .25; stroke-dasharray: .5 .5; }
+.d-hurdle line { stroke: #fff; stroke-width: .45; }
+.d-hurdle circle { fill: #ff9f1c; }
+
+/* Interval timer */
+.itimer { display: grid; gap: 4px; text-align: center; transition: background .3s; }
+.itimer .it-label { font-family: var(--display); font-weight: 700; font-size: 28px; text-transform: uppercase; line-height: 1.1; margin-top: 6px; }
+.itimer .it-clock { font-family: var(--display); font-weight: 700; font-size: clamp(60px, 20vw, 96px); line-height: 1; font-variant-numeric: tabular-nums; }
+.itimer .it-sub { font-size: 14px; }
+.itimer.work { background: var(--opp); border-color: var(--opp); color: #fff; }
+.itimer.rest { background: var(--kit); border-color: var(--kit); color: #fff; }
+.itimer.work .muted, .itimer.rest .muted, .itimer.work .label, .itimer.rest .label { color: rgba(255,255,255,.85); }
+.itimer.work .bar i, .itimer.rest .bar i { background: #fff; }
+.itimer.work .btn, .itimer.rest .btn { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.4); color: #fff; }

@@ -1,9 +1,16 @@
 // Drill library.
-// Diagram area is 30 wide (x) by 40 long (y) in yards. The top goal is attacked first.
+// Diagram area is 30 wide (x) by 40 long (y). The top goal is attacked first.
 // people: id -> { t: blue|red|gk|coach, l: label, wait: faded waiting player }
-// setup: still picture of starting positions, kit and labels.
-// anim: start positions, who has the ball, then steps. Each step can move people (moves),
-//   send the ball to a person id or a point (ball), and starts the ball late with ballAt (0-1).
+// layout: field ('pitch' default or 'grass'), dims, lines, track, cones, hurdles [x, y, width, vertical], balls, callouts.
+// anim: who has the ball, then steps. A step can move people (a point, or a path of points),
+//   send the ball to a person id or a point (ball), start the ball late (ballAt 0-1), and pulse people (exercise).
+// interval: optional timer for fitness drills.
+
+// Sweat box: eight points round a square, clockwise from the top-left corner
+const SQ = [[6, 11], [15, 11], [24, 11], [24, 20], [24, 29], [15, 29], [6, 29], [6, 20]];
+const sqJog = lap => Object.fromEntries(SQ.map((_, i) => ['P' + i, [1, 2, 3, 4].map(k => SQ[(i + lap * 4 + k) % 8])]));
+const SWEAT_EX = ['Push-ups', 'Squats', 'Mountain climbers', 'Star jumps', 'Lunges', 'Burpees', 'High knees', 'Plank'];
+
 window.DRILLS = [
   {
     id: 'cross-2v2-transition',
@@ -13,23 +20,23 @@ window.DRILLS = [
     minutes: 15,
     players: '4 per rep (2 v 2) + 2 keepers + coach. Best with 8–12 so groups rotate.',
     area: 'About 40 × 30 yards, a goal at each end',
-    source: { title: 'High-Intensity Transition Drills for Pre-Season', channel: 'Modern Soccer Coach', url: 'https://youtu.be/UUXz-Nqa6_Q?t=199', at: '3:19' },
     summary: 'Blues attack a first-time cross at one goal. The moment that chance ends, the keeper releases the reds to counter 2v2 at the other end. The crosser is still out wide, so it starts as a 2v1.',
     why: 'Two different pictures in one rep: a cross and finish, then a fast central counter. Players have to switch from attacking to defending (and back) instantly.',
-    equipment: ['2 goals', '2 goalkeepers (or a coach in one goal)', '10+ balls with the coach', '5+ balls in the first goal for the keeper', 'Bibs: blue and red', '4 cones for the corners', '2 cones for the start lines'],
+    equipment: ['2 goals', '2 goalkeepers (or a coach in one goal)', '10+ balls with the coach', '5+ balls in the first goal for the keeper', 'Bibs: blue and red', '4 cones for the corners', '2 cones to mark the wide channel', '3 start cones'],
     setup: [
       'Mark an area about 40 yards long and 30 wide with a goal and keeper at each end.',
-      'Put the start cones on one touchline, just in front of halfway.',
-      'Blues line up on the outside (nearest the touchline). Reds line up just inside them.',
-      'The coach stands wide near the first goal, about level with the edge of the box, with the balls.',
-      'Leave spare balls in the first goal so the keeper can restart straight away.',
+      'Mark a wide channel down one side of the attacking half, about 7 yards in from the touchline.',
+      'The coach stands in the channel near the first goal, level with the edge of the box, with the balls.',
+      'B1 starts in the channel just in front of halfway, with a ball.',
+      'R1 and R2 start in the middle of the pitch on halfway. B2 starts on the other side, fairly narrow (inside the width of the box).',
+      'The next group waits behind B1. Leave spare balls in the first goal so the keeper can restart straight away.',
     ],
     roles: [
-      { t: 'blue', l: 'B1', name: 'Crosser', job: 'Starts with the ball. Passes to the coach, then crosses first time.' },
-      { t: 'blue', l: 'B2', name: 'Runner', job: 'Races into the box to finish the cross.' },
-      { t: 'red', l: 'R', name: 'Red pair', job: 'Defend the cross, then counter-attack the far goal.' },
+      { t: 'blue', l: 'B1', name: 'Crosser', job: 'Starts in the wide channel with the ball. Passes to the coach, then crosses first time.' },
+      { t: 'blue', l: 'B2', name: 'Runner', job: 'Starts on the far side, fairly narrow. Races into the box to finish.' },
+      { t: 'red', l: 'R', name: 'Red pair', job: 'Start in the middle. Defend the cross, then counter-attack the far goal.' },
       { t: 'gk', l: 'GK', name: 'Keepers', job: 'First keeper saves, then releases a red fast. Second keeper faces the counter.' },
-      { t: 'coach', l: 'C', name: 'Coach', job: 'Sets the ball back for the first-time cross.' },
+      { t: 'coach', l: 'C', name: 'Coach', job: 'Stands in the channel and sets the ball back for the first-time cross.' },
     ],
     people: {
       GKA: { t: 'gk', l: 'GK' }, GKB: { t: 'gk', l: 'GK' }, C: { t: 'coach', l: 'C' },
@@ -37,46 +44,49 @@ window.DRILLS = [
       W1: { t: 'blue', l: '', wait: true }, W2: { t: 'red', l: '', wait: true }, W3: { t: 'blue', l: '', wait: true }, W4: { t: 'red', l: '', wait: true },
     },
     start: {
-      GKA: [15, 1.3], GKB: [15, 38.7], C: [2.2, 9.5],
-      B1: [1.5, 21], R1: [4.3, 21], B2: [1.5, 24], R2: [4.3, 24],
-      W1: [1.5, 27], W2: [4.3, 27], W3: [1.5, 29.6], W4: [4.3, 29.6],
+      GKA: [15, 1.3], GKB: [15, 38.7], C: [2.4, 9.5],
+      B1: [3.2, 17], R1: [12.5, 20.6], R2: [17.5, 20.6], B2: [21.5, 21],
+      W1: [2.2, 26.5], W2: [4.8, 26.5], W3: [2.2, 29.2], W4: [4.8, 29.2],
     },
     layout: {
-      cones: [[0.2, 19.6], [3.4, 19.6]],
+      lines: [{ a: [7, 0], b: [7, 20], dash: true }],
+      cones: [[7, 10], [3.2, 18.7], [15, 22.4], [21.5, 22.7]],
       balls: [[0.9, 7.6, 5], [17.6, -0.4, 3]],
+      dims: [{ a: [0, -2.6], b: [30, -2.6], label: '30 yd' }, { a: [31.6, 0], b: [31.6, 40], label: '40 yd' }],
       callouts: [
-        { to: [3.4, 19.4], at: [9, 16.2], text: 'Start cones' },
-        { to: [4.6, 22.5], at: [9, 22.6], text: 'Blues outside, reds inside' },
-        { to: [5, 28.3], at: [9, 29.2], text: 'Next group waits' },
-        { to: [2.6, 8.4], at: [8.5, 10.6], text: 'Coach + ball supply' },
+        { to: [3, 8.4], at: [8.6, 9.6], text: 'Coach + ball supply' },
+        { to: [4.2, 16.4], at: [8.6, 14.4], text: 'B1 starts in the channel' },
+        { to: [15, 22], at: [9.4, 25.2], text: 'Reds start central' },
+        { to: [22.4, 22.2], at: [18.2, 28.6], text: 'B2: far side, narrow' },
+        { to: [5.8, 28], at: [8.4, 31.6], text: 'Next group waits' },
         { to: [18.6, 0.2], at: [20.6, 4.6], text: 'Spare balls' },
-        { to: [16.3, 38.4], at: [19.3, 34.6], text: 'Keeper in each goal' },
+        { to: [16.3, 38.4], at: [19.3, 35.2], text: 'Keeper in each goal' },
       ],
     },
     anim: {
       ball: 'B1',
       steps: [
-        { phase: 1, text: 'B1 passes into the coach.', dur: 1.1, ball: 'C', moves: { B1: [2.4, 17] } },
-        { phase: 1, text: 'B1 runs on. The coach sets the ball back into their path.', dur: 1.4, ball: 'B1', ballAt: .35,
-          moves: { B1: [4.6, 12.6], B2: [3.5, 20.5], R1: [6, 18.5], R2: [6.5, 21.5] } },
-        { phase: 1, text: 'First-time cross. B2 and both reds race into the box.', dur: 1.5, ball: [14, 5.2], ballAt: .15,
-          moves: { B2: [13.2, 5.6], R1: [15.6, 7.2], R2: [18.2, 5.6] } },
-        { phase: 1, text: 'B2 attacks the cross and shoots. The keeper saves.', dur: .9, ball: 'GKA', ballAt: .2, moves: { B2: [13.8, 4.6] } },
+        { phase: 1, text: 'B1 passes into the coach.', dur: 1.1, ball: 'C', moves: { B1: [3.6, 14] } },
+        { phase: 1, text: 'B1 runs on and the coach sets it back. Everyone else starts their run.', dur: 1.4, ball: 'B1', ballAt: .35,
+          moves: { B1: [4.6, 11.8], R1: [13, 15], R2: [16.5, 14.5], B2: [19, 15] } },
+        { phase: 1, text: 'First-time cross. B2 and the reds race into the box, all running narrow.', dur: 1.5, ball: [15, 5.2], ballAt: .15,
+          moves: { B2: [15.8, 6.2], R1: [13, 6.6], R2: [17.2, 4.6] } },
+        { phase: 1, text: 'B2 attacks the cross and shoots. The keeper saves.', dur: .9, ball: 'GKA', ballAt: .2, moves: { B2: [15.4, 5.2] } },
         { phase: 2, text: 'Straight away the keeper plays out to a red.', dur: 1.3, ball: 'R2', ballAt: .25,
-          moves: { R2: [22, 10.5], R1: [16.5, 9.5] } },
+          moves: { R2: [21, 9.5], R1: [11, 10] } },
         { phase: 2, text: 'Reds counter fast. The crosser is still out wide, so it’s 2v1.', dur: 2.2,
-          moves: { R2: [20.5, 23], R1: [13, 23], B2: [17, 24.5], B1: [7, 21] } },
+          moves: { R2: [19.5, 23], R1: [12, 23], B2: [16.5, 25], B1: [7, 20] } },
         { phase: 2, text: 'R2 draws the defender, then slips R1 in.', dur: 1.3, ball: 'R1', ballAt: .45,
-          moves: { R2: [19.5, 28], B2: [18, 29], R1: [12.5, 30.5], B1: [9, 27] } },
+          moves: { R2: [19.2, 28], B2: [17.8, 29], R1: [12.5, 30.5], B1: [9, 26.5] } },
         { phase: 2, text: 'R1 finishes before the crosser gets back.', dur: .9, ball: [13.6, 40.4], ballAt: .1, moves: { B1: [10, 29.5] } },
         { phase: 2, text: 'Next four go straight away. Swap colours every few reps.', dur: 1.2, moves: {} },
       ],
     },
     phases: [
       { name: 'Phase 1 · Cross & finish', steps: [
-        'B1 passes to the coach and runs onto the return.',
+        'B1 starts in the wide channel. They pass to the coach and run onto the return.',
         'The coach sets the ball back for a first-time cross.',
-        'B2 and both reds race into the box. B2 tries to score; the reds defend.',
+        'B2 (from the far side) and both reds (from the middle) race into the box. Everyone runs narrow. B2 tries to score; the reds defend.',
       ] },
       { name: 'Phase 2 · 2v2 counter', steps: [
         'As soon as the chance ends (goal, save, block or out), the first keeper plays out to a red.',
@@ -98,11 +108,159 @@ window.DRILLS = [
       'Immediately after that chance, the goalkeeper plays a ball to a red player and it’s a 2v2 the other way.',
       'If they play quickly and effectively, they can take advantage of the 2v1 before the crossing player recovers.',
     ],
+    sources: [{ title: 'High-Intensity Transition Drills for Pre-Season (Modern Soccer Coach)', url: 'https://youtu.be/UUXz-Nqa6_Q?t=199', at: '3:19' }],
     progressions: [
       'If the blues win it back during the counter, let them attack the first goal again.',
       'Limit the reds to 8 seconds to score on the counter.',
       'Easier: let the coach throw or roll the cross in for younger players.',
     ],
-    note: 'The video shows the setup but not the area size, timings or most coaching points. Those are suggestions to adjust for your team.',
+    note: 'The video doesn’t give the area size, timings or most coaching points. Those are suggestions to adjust for your team.',
+  },
+
+  {
+    id: 'sweat-box',
+    name: 'Sweat Box',
+    category: 'Fitness',
+    intensity: 'High',
+    minutes: 10,
+    players: 'The whole squad at once',
+    area: 'A square about 15 × 15 yards',
+    summary: 'Everyone jogs round a square for 20 seconds, then does 40 seconds of a hard exercise. Change the exercise each round and repeat.',
+    why: 'Quick, simple fitness that needs almost no space or kit. Everyone works at the same time, and the jog doubles as recovery.',
+    equipment: ['4 cones', 'This timer (or a stopwatch and whistle)'],
+    setup: [
+      'Mark a square about 15 × 15 yards with a cone on each corner.',
+      'Spread the players out evenly round the edge of the square.',
+      'Stand in the middle with the timer so everyone can hear you.',
+    ],
+    how: [
+      'Jog round the outside of the square for 20 seconds. Keep it easy.',
+      'On the beep, stop where you are and do 40 seconds of the exercise, flat out.',
+      'Back to jogging for 20 seconds, then the next exercise.',
+      'Keep going for 8 rounds (8 minutes).',
+    ],
+    interval: {
+      rounds: 8,
+      segments: [{ label: 'Jog the square', secs: 20 }, { label: '{ex}', secs: 40, work: true }],
+      exercises: SWEAT_EX,
+    },
+    people: Object.fromEntries([...SQ.map((_, i) => ['P' + i, { t: 'blue', l: '' }]), ['C', { t: 'coach', l: 'C' }]]),
+    start: Object.fromEntries([...SQ.map((p, i) => ['P' + i, p]), ['C', [15, 20]]]),
+    layout: {
+      field: 'grass',
+      track: [[6, 11], [24, 11], [24, 29], [6, 29], [6, 11]],
+      cones: [[4.6, 9.6], [25.4, 9.6], [25.4, 30.4], [4.6, 30.4]],
+      dims: [{ a: [6, 7.8], b: [24, 7.8], label: '15 yd' }, { a: [27.4, 11], b: [27.4, 29], label: '15 yd' }],
+      callouts: [
+        { to: [25.4, 9.2], at: [12, 3.6], text: 'Cone on each corner' },
+        { to: [6.9, 20.7], at: [8.4, 24.5], text: 'Players spread round the edge' },
+        { to: [15, 18.9], at: [8.4, 16.2], text: 'Coach in the middle' },
+        { to: [15, 29.6], at: [10, 34], text: 'Jog round the outside' },
+      ],
+    },
+    anim: {
+      steps: [
+        { phase: 1, tag: 'Jog · 20s', text: 'Jog round the square. Nice and easy, get your breath back.', dur: 2.6, linear: true, moves: sqJog(0) },
+        { phase: 2, tag: 'Work · 40s', text: 'Stop! 40 seconds of push-ups, flat out.', dur: 2.2, pulse: true },
+        { phase: 1, tag: 'Jog · 20s', text: 'Back to jogging.', dur: 2.6, linear: true, moves: sqJog(1) },
+        { phase: 2, tag: 'Work · 40s', text: '40 seconds of squats.', dur: 2.2, pulse: true },
+        { phase: 1, tag: 'Jog · 20s', text: 'Jog again.', dur: 2.6, linear: true, moves: sqJog(2) },
+        { phase: 2, tag: 'Work · 40s', text: '40 seconds of mountain climbers.', dur: 2.2, pulse: true },
+        { phase: 1, tag: 'Repeat', text: 'Keep going: 8 rounds, a new exercise each time.', dur: 1.4 },
+      ],
+    },
+    coaching: [
+      { who: 'Form first', points: ['Push-ups: straight back, chest close to the ground. Knees down is fine.', 'Squats: chest up, sit back like there’s a chair behind you.', 'Mountain climbers: hands under shoulders, drive the knees in fast.'] },
+      { who: 'Effort', points: ['The 40 seconds should be hard. Count your reps and try to beat it next time.', 'The jog is the rest. Breathe and get ready for the next one.'] },
+      { who: 'Keep it safe', points: ['Keep spacing so nobody bumps into each other.', 'Plank and push-ups on grass, not on a hard surface.'] },
+    ],
+    progressions: [
+      'Easier: 30 seconds of work and 30 seconds of jogging, or fewer rounds.',
+      'Harder: 45 seconds of work and 15 seconds of jogging, or 10 rounds.',
+      'Add a ball: dribble round the square instead of jogging.',
+      'Pairs: partners race to the most reps in each round.',
+    ],
+    note: 'Based on how you described it: 20 seconds jogging, then 40 seconds of an exercise. The exercise list and number of rounds are suggestions.',
+  },
+
+  {
+    id: 'hoff-circuit',
+    name: 'Hoff Circuit',
+    category: 'Fitness',
+    intensity: 'Very high',
+    minutes: 15,
+    players: 'The whole squad, a ball each. Set off 5 seconds apart.',
+    area: 'A track inside about 40 × 30 yards',
+    summary: 'A dribbling circuit for match fitness. Everyone dribbles round a track with a slalom, small hurdles and a backwards section, working hard for 3 minutes, then jogs to recover.',
+    why: 'Builds aerobic fitness with the ball at your feet, so players work on close control while tired, like in a match.',
+    equipment: ['A ball each', 'About 12 cones', '3 small hurdles (about 30 cm), or poles on cones', 'This timer'],
+    setup: [
+      'Mark a rectangle about 40 × 30 yards. Players dribble round the edge.',
+      'Up the left side: 6 slalom cones about 4 yards apart.',
+      'Across the top: 3 small hurdles, spread out.',
+      'Down the right side: open space for a fast dribble.',
+      'Bottom right: 2 cones about 8 yards apart. Players dribble backwards between them.',
+      'Start cone in the bottom-left corner. Everyone goes the same way round.',
+    ],
+    how: [
+      'Slalom up the left side with small touches.',
+      'Across the top: send the ball past each hurdle and jump over it.',
+      'Fast dribble down the right side.',
+      'Between the gate cones, dribble backwards using the sole of your foot.',
+      'Turn and drive along the bottom back to the start, then keep going round.',
+      'Work for 3 minutes, then 2 minutes easy jog without the ball. 3 rounds.',
+    ],
+    interval: {
+      rounds: 3,
+      segments: [{ label: 'Dribble the circuit', secs: 180, work: true }, { label: 'Easy jog, no ball', secs: 120, skipLast: true }],
+    },
+    people: { P1: { t: 'blue', l: '' }, W1: { t: 'blue', l: '', wait: true }, W2: { t: 'blue', l: '', wait: true }, C: { t: 'coach', l: 'C' } },
+    start: { P1: [4, 36], W1: [1.8, 38.6], W2: [4.6, 38.8], C: [15, 20] },
+    layout: {
+      field: 'grass',
+      track: [[4, 36], [4, 4], [26, 4], [26, 36], [4, 36]],
+      cones: [[4, 32], [4, 28], [4, 24], [4, 20], [4, 16], [4, 12], [4, 4], [26, 4], [26, 24], [26, 32], [26, 36], [4, 36]],
+      hurdles: [[10, 4, 2.4, true], [16, 4, 2.4, true], [22, 4, 2.4, true]],
+      dims: [{ a: [4, 0.6], b: [26, 0.6], label: '30 yd' }, { a: [29.2, 4], b: [29.2, 36], label: '40 yd' }],
+      callouts: [
+        { to: [4.6, 24], at: [8, 27], text: 'Slalom: 6 cones' },
+        { to: [16, 5.4], at: [9.4, 8.6], text: 'Hurdles, about 30 cm' },
+        { to: [25.4, 14], at: [12, 13.6], text: 'Fast dribble' },
+        { to: [25.4, 28], at: [7.6, 31], text: 'Backwards between the cones' },
+        { to: [15, 21.1], at: [10, 23.4], text: 'Coach with the timer' },
+        { to: [5.6, 37.4], at: [9, 38.4], text: 'Start here, 5 seconds apart' },
+      ],
+    },
+    anim: {
+      ball: 'P1',
+      steps: [
+        { phase: 1, tag: 'Slalom', text: 'Slalom up the side. Small touches, both feet.', dur: 2.8, linear: true,
+          moves: { P1: [[2.6, 32], [5.4, 28], [2.6, 24], [5.4, 20], [2.6, 16], [5.4, 12], [4, 4]] } },
+        { phase: 1, tag: 'Hurdles', text: 'Send the ball past each hurdle and jump over it.', dur: 2.2, linear: true, pulse: true,
+          moves: { P1: [[10, 4], [16, 4], [22, 4], [26, 4]] } },
+        { phase: 1, tag: 'Fast dribble', text: 'Head up and dribble fast down the side.', dur: 1.3, moves: { P1: [26, 23] } },
+        { phase: 1, tag: 'Backwards', text: 'Dribble backwards between the cones, using the sole of your foot.', dur: 2.2, linear: true, moves: { P1: [26, 33] } },
+        { phase: 1, tag: 'Back to start', text: 'Turn and drive back to the start. Keep going round.', dur: 1.8, moves: { P1: [[26, 36], [4, 36]] } },
+        { phase: 2, tag: 'Recover', text: 'After 3 minutes: 2 minutes easy jog without the ball. Then go again.', dur: 1.6 },
+      ],
+    },
+    coaching: [
+      { who: 'Slalom', points: ['Small touches with both feet. Keep the ball close.'] },
+      { who: 'Hurdles', points: ['Ball one side of the hurdle, you the other. Pick it up straight after you land.'] },
+      { who: 'Straight', points: ['Head up and push the ball out in front. Fast, but under control.'] },
+      { who: 'Backwards', points: ['Use the sole of your foot to pull the ball back. Glance over your shoulder.'] },
+      { who: 'Effort', points: ['During the 3 minutes, it should be hard to talk. Keep going all the way.', 'Count your laps and try to beat it in the next round.', 'Recovery is a gentle jog or walk. Have a drink.'] },
+    ],
+    progressions: [
+      'Easier: 2-minute rounds, or take the hurdles out.',
+      'Harder: the original adult version is 4 × 4 minutes with 3 minutes of recovery.',
+      'Weaker foot only for one lap.',
+    ],
+    sources: [
+      { title: 'Chamari et al. 2005, The Hoff test (British Journal of Sports Medicine)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC1725014' },
+      { title: 'Hoff test summary: 290 m lap in a 30 × 55 m area', url: 'http://georgenassis.blogspot.com/2011/08/hoff-test-football-specific-test-to.html' },
+      { title: 'Bašić & Barišić, the Hoff dribbling track', url: 'https://www.bib.irb.hr/756498' },
+    ],
+    note: 'The full Hoff track is 290 m a lap in a 55 × 30 m area, and adults run it as 4 × 4 minutes. This is a smaller youth version with the same parts (slalom, hurdles, backwards section, dribble) and shorter rounds.',
   },
 ];
