@@ -436,10 +436,28 @@ function tabs(cur) {
     <a href="positions.html">${ICON.pos}Positions</a></nav></div>`;
 }
 
+// ---------- Install as an app ----------
+let installEvt = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isAndroid = /Android/i.test(navigator.userAgent);
+const installDismissed = () => { try { return localStorage.getItem('coach-hub-install') === 'no'; } catch (e) { return false; } };
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (route()[0] === 'plan' || !location.hash) render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('Installed. Open Coach Hub from your home screen.'); render(); });
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+function installCard() {
+  if (standalone() || installDismissed()) return '';
+  if (installEvt) return `<div class="card install"><div class="grow"><h3>Install Coach Hub</h3><p class="muted small">Adds it to your home screen and opens full screen, like a normal app. Works offline at the pitch.</p></div>
+    <div class="row"><button class="btn primary sm" data-act="install">Install</button><button class="btn sm" data-act="install-no">Not now</button></div></div>`;
+  if (isAndroid) return `<div class="card install"><div class="grow"><h3>Install Coach Hub</h3><p class="muted small">Open the browser menu <b>⋮</b> and tap <b>Install app</b> or <b>Add to Home screen</b>.</p></div>
+    <div class="row"><button class="btn sm" data-act="install-no">Got it</button></div></div>`;
+  return '';
+}
+
 function viewPlan() {
   const list = [...store.sessions].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   return `<div class="wrap">
     <div class="title-row"><h1>Sessions</h1><span class="spacer"></span><button class="btn primary sm" data-act="new">+ New</button></div>
+    ${installCard()}
     ${store.run && getSession(store.run.sid) ? `<a class="btn gold block" href="#run/${store.run.sid}" style="margin-bottom:12px">Resume: ${longDate(getSession(store.run.sid).date)}</a>` : ''}
     <div class="stack">
     ${list.length ? list.map(s => `<a class="card list-item" href="#s/${s.id}"><div class="grow"><h3>${longDate(s.date)}</h3>
@@ -594,6 +612,12 @@ const cur = () => getSession(route()[1]);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act],[data-up],[data-down],[data-remove],[data-run],[data-pick],[data-preset]');
   if (!el) return;
+  if (el.dataset.act === 'install') {
+    const ev = installEvt; installEvt = null;
+    if (ev) { ev.prompt(); ev.userChoice.finally(render); }
+    return;
+  }
+  if (el.dataset.act === 'install-no') { try { localStorage.setItem('coach-hub-install', 'no'); } catch (e) {} render(); return; }
   const s = cur();
   if (el.dataset.up || el.dataset.down) {
     const i = +(el.dataset.up ?? el.dataset.down), j = el.dataset.up ? i - 1 : i + 1;

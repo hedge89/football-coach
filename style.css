@@ -199,3 +199,8 @@ textarea { height: auto; min-height: 90px; padding: 10px 12px; resize: vertical;
 .so-dot.m { background: var(--bad); border-color: var(--bad); }
 .so-score { font-size: 26px; text-align: right; font-variant-numeric: tabular-nums; }
 .so-status { margin: 0; font-family: var(--display); font-weight: 700; font-size: 20px; text-transform: uppercase; text-align: center; }
+
+/* Install prompt */
+.card.install { display: grid; gap: 10px; margin-bottom: 12px; border-color: var(--kit); }
+.card.install h3 { margin: 0 0 2px; }
+.card.install p { margin: 0; }
