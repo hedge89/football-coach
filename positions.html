@@ -185,7 +185,7 @@ button:focus-visible, select:focus-visible { outline: 3px solid var(--gold); out
       <button class="btn primary" id="check">Check</button>
       <button class="btn" id="showme">Show me</button>
       <button class="btn" id="draw" aria-pressed="false">Draw</button>
-      <button class="btn" id="moveall" aria-pressed="false">Move all</button>
+      <button class="btn" id="moveall" aria-pressed="false">Move team</button>
       <button class="btn" id="reset">Reset</button>
     </section>
 
@@ -380,6 +380,114 @@ const SC = [
   mirror(byId['their-corner'], 'their-corner-l', 'Their corner from our left', 'Their corner from our left. Everyone has a job.'),
 ];
 
+// Free play: the coach sets up the ball and their players, and the shape engine places our team
+SC.push(
+  { id: 'free-att', group: 'Free play', title: 'Free play: our ball', phase: 'att', free: true, carrier: null, ball: [50, 100],
+    brief: 'Our ball. Drag the ball and their players anywhere. Our team moves with the ball.',
+    ask: 'Move the ball somewhere new. Before you check, where should you be now?',
+    them: [[50, 5], [24, 44], [50, 40], [76, 44], [50, 58], [22, 70], [50, 72], [78, 70], [50, 92]] },
+  { id: 'free-def', group: 'Free play', title: 'Free play: their ball', phase: 'def', free: true, carrier: null, ball: [50, 60],
+    brief: 'Their ball. Drag the ball and their players anywhere. Our team moves with the ball.',
+    ask: 'Move the ball somewhere new. Who presses, who covers, and who marks?',
+    them: [[50, 6], [24, 40], [50, 36], [76, 40], [50, 60], [18, 70], [46, 80], [80, 72], [50, 98]] },
+);
+
+// ---------- Shape engine: rules of thumb for where everyone goes, worked out from the ball ----------
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function shapeFor(phase, ball, them) {
+  const [bx, by] = ball, onLeft = bx < 50, wide = Math.abs(bx - 50) > 22, out = {};
+  const ownSide = k => k[0] === 'L' ? onLeft : !onLeft;
+  if (phase === 'att') {
+    const D = clamp(by + 38, 62, 128), final = by < 42;
+    // Their second-deepest player (the keeper is the deepest) sets the offside line
+    const ys = them.map(p => p[1]).sort((a, b) => a - b), onside = Math.min(ys[1] ?? 10, by);
+    out.GK = [50 + (bx - 50) * .1, clamp(D + 22, 108, 143), D >= 118
+      ? 'Stay central, a few steps off your line. You are the safe pass back if a defender gets pressed.'
+      : 'Push up to the edge of your box or beyond. Our defenders are high, so you sweep up anything kicked over them.'];
+    out.CB = [50 + (bx - 50) * .15, D, 'Stay central and behind the ball, goal-side of their striker. If we lose it, you are the one who stops the counter.'];
+    for (const k of ['LB', 'RB']) {
+      const x = k === 'LB' ? 10 : 90;
+      out[k] = wide && !ownSide(k)
+        ? [k === 'LB' ? 28 : 72, D + 2, 'The ball is on the other side, so tuck in towards the middle and cover the centre back.']
+        : [x, D - 8, 'Get wide and a little higher than the centre back. Open your body so you face up the pitch when the ball comes.'];
+    }
+    out.DM = [50 + (bx - 50) * .35, clamp(by + 20, 40, 108), 'Stay behind the ball and a little to the ball side. You are the pass back that switches play, and the first to stop a counter.'];
+    if (final) {
+      out.AM = [50 + (bx - 50) * .2, 26, 'Arrive at the edge of the box for the cut-back. Defenders get dragged towards goal, so the space is here.'];
+      out.ST = [onLeft ? 42 : 58, 11, 'Attack the near post. Time your run so you arrive as the ball comes in, not before.'];
+      for (const k of ['LW', 'RW']) out[k] = ownSide(k)
+        ? [k === 'LW' ? 8 : 92, clamp(by + 4, 8, 90), 'Stay wide and close to the ball. Give an easy pass, or run round the outside to cross.']
+        : [onLeft ? 60 : 40, 12, 'Attack the back post. Crosses that go over everyone land here.'];
+    } else {
+      out.AM = [50 + (bx - 50) * .45, clamp(by - 18, 22, 94), 'Find the gap between their midfield and their defence on the ball side, close enough for a short pass.'];
+      out.ST = [50 + (bx - 50) * .25, clamp(Math.max(by - 42, onside + 2), 10, 74), 'Stay high on their last defender but onside. You push their defence back, which gives our midfield room.'];
+      for (const k of ['LW', 'RW']) out[k] = [k === 'LW' ? 5 : 95, clamp(by - 25, 12, 92), 'Stay high and on the touchline. You make the pitch big, which stretches their defence and opens gaps in the middle.'];
+    }
+    // Whoever is nearest the ball has it
+    let best = null, bd = 1e9;
+    for (const k in out) { if (k === 'GK' && by < 128) continue; const d = Math.hypot(out[k][0] - bx, out[k][1] - by); if (d < bd) { bd = d; best = k; } }
+    out[best] = [bx, by + 2, 'You have the ball. Look up first: who is free, and where is the space?'];
+    out.carrier = best;
+  } else {
+    const shift = (bx - 50) * .45, D = clamp(by * .5 + 75, 88, 132), deep = by > D - 30;
+    out.GK = [50 + (bx - 50) * .12, clamp(D + 18, 124, 146), by > 120
+      ? 'Stay near your line, on the line between the ball and the middle of the goal.'
+      : 'Come off your line, ready to sweep up any ball kicked over our defence.'];
+    // Their attackers: anyone level with or past the ball who is not on it
+    const fwds = them.filter(o => o[1] > by - 5 && Math.hypot(o[0] - bx, o[1] - by) > 3), used = new Set();
+    const zone = { LB: [clamp(50 + shift - 18, 8, 92), D - 2], CB: [clamp(50 + shift, 8, 92), D], RB: [clamp(50 + shift + 18, 8, 92), D - 2] };
+    let presser = null;
+    if (wide && deep) {
+      presser = onLeft ? 'LB' : 'RB';
+      out[presser] = [bx + (onLeft ? 3 : -3), Math.min(by + 6, 147), 'Get goal-side of the player on the ball and press. Show them down the line, never inside.'];
+    }
+    for (const k of ['CB', 'LB', 'RB']) {
+      if (k === presser) continue;
+      const [zx, zy] = zone[k];
+      let m = null, md = 22;
+      fwds.forEach((o, i) => { const d = Math.hypot(o[0] - zx, o[1] - zy); if (!used.has(i) && d < md) { md = d; m = i; } });
+      if (m !== null) {
+        used.add(m); const o = fwds[m];
+        out[k] = [zx + (o[0] - zx) * .6, clamp(o[1] + 6, zy - 10, 147), 'Stay goal-side of their forward, close enough to touch. Keep them in front of you.'];
+      } else out[k] = [zx, zy, k === 'CB'
+        ? 'Stay central and level with the other defenders. Keep the line together and don’t drop off on your own.'
+        : presser ? 'Tuck in to guard the middle of the box. The far side is less dangerous right now.'
+        : 'Squeeze in narrow towards the centre back. The danger is in the middle, so stay compact.'];
+    }
+    out.DM = [clamp(50 + shift * .8, 15, 85), D - 14, 'Sit in front of the defenders on the ball side. Block the pass into their striker’s feet.'];
+    const M = clamp(by + 10, 30, D - 22);
+    const mids = { LW: [clamp(50 + shift - 22, 6, 94), M], AM: [clamp(50 + shift, 6, 94), M], RW: [clamp(50 + shift + 22, 6, 94), M] };
+    let near = null, nd = 1e9;
+    for (const k in mids) { const d = Math.hypot(mids[k][0] - bx, mids[k][1] - by); if (d < nd) { nd = d; near = k; } }
+    for (const k in mids) {
+      if (k === near) out[k] = presser
+        ? [bx + (onLeft ? 6 : -6), by - 6, 'Sprint back and help the defender on the ball. Two against one wins it back.']
+        : [bx, by + 5, 'Press the ball! Get goal-side and push them away from the middle.'];
+      else out[k] = [...mids[k], wide && !ownSide(k) && k !== 'AM'
+        ? 'Tuck in narrow. The ball is far away, so the far touchline is less dangerous right now.'
+        : 'Stay level with the other midfielders and narrow, so they can’t pass through the gaps between you.'];
+    }
+    out.ST = [clamp(50 + shift * .5, 15, 85), clamp(by - 14, 20, 78), by > 95
+      ? 'Stay up near halfway. When we win it, you are our outlet for a quick counter.'
+      : 'Stand in the passing line back to their defenders, so they have to play forward into our press.'];
+    out.carrier = null;
+  }
+  for (const k of Object.keys(out)) if (Array.isArray(out[k])) { out[k][0] = clamp(out[k][0], 1, 99); out[k][1] = clamp(out[k][1], 1, 149); }
+  return out;
+}
+// Scenario answers hold until the ball is moved; after that the engine takes over
+const adapted = () => !!sc().free || (!!state.cur && Math.hypot(state.cur.ball[0] - sc().ball[0], state.cur.ball[1] - sc().ball[1]) > 4);
+const model = () => shapeFor(sc().phase, state.cur.ball, state.cur.them);
+const carrier = () => adapted() ? model().carrier : sc().carrier;
+function reflow() {
+  const m = adapted() ? model() : null;
+  for (const p of POS) {
+    if (p.k === state.pos && p.k !== (m ? m.carrier : sc().carrier)) continue;
+    const t = m ? m[p.k] : sc().us[p.k];
+    state.cur.us[p.k] = [t[0], t[1]];
+  }
+}
+
 const $ = s => document.querySelector(s);
 const svg = $('#pitch');
 const NS = 'http://www.w3.org/2000/svg';
@@ -394,7 +502,7 @@ try {
 function save() { try { localStorage.setItem('shape-trainer', JSON.stringify({ si: state.si, pos: state.pos })); } catch (e) {} }
 
 const sc = () => SC[state.si];
-const ideal = k => sc().us[k];
+const ideal = k => adapted() ? model()[k] : sc().us[k];
 
 // Grass stripes
 (function () {
@@ -421,13 +529,14 @@ function loadScenario(i) {
   const s = sc();
   state.cur = { us: {}, them: s.them.map(p => [...p]), ball: [...s.ball] };
   for (const p of POS) state.cur.us[p.k] = startFor(p.k);
+  if (carrier() === state.pos) state.cur.us[state.pos] = [...ideal(state.pos)].slice(0, 2);
   state.revealed = false; state.strokes = [];
   save(); render();
 }
 function startFor(k) {
   const s = sc();
-  if (k === state.pos && k !== s.carrier) return [...START[k]];
-  return [s.us[k][0], s.us[k][1]];
+  if (k === state.pos && k !== carrier()) return [...START[k]];
+  return [ideal(k)[0], ideal(k)[1]];
 }
 function selectPos(k) {
   if (k === state.pos) return;
@@ -435,7 +544,7 @@ function selectPos(k) {
   state.pos = k;
   state.cur.us[old] = [ideal(old)[0], ideal(old)[1]];
   state.cur.us[k] = startFor(k);
-  if (sc().carrier === k) state.cur.ball = [...sc().ball];
+  if (!adapted() && sc().carrier === k) state.cur.ball = [...sc().ball];
   state.revealed = false;
   save(); render();
 }
@@ -453,7 +562,7 @@ function tok(cls, id, [x, y], r, label, extra = '') {
 }
 
 function render() {
-  const s = sc(), c = state.cur, k = state.pos, me = c.us[k];
+  const s = sc(), c = state.cur, k = state.pos, me = c.us[k], car = carrier();
   sel.value = state.si;
   $('#brief').textContent = s.brief;
   $('#ask').textContent = s.ask;
@@ -465,7 +574,7 @@ function render() {
 
   // Helper lines
   let help = '', legend = '';
-  if (s.phase === 'att' && k !== s.carrier) {
+  if (s.phase === 'att' && k !== car) {
     const blocked = c.them.some(o => { const [d, t] = segDist(o, c.ball, me); return d < 3.6 && t > 0.06; });
     help += `<line class="lane ${blocked ? 'blocked' : 'open'}" x1="${f(c.ball[0])}" y1="${f(c.ball[1])}" x2="${f(me[0])}" y2="${f(me[1])}"></line>`;
     legend = `<span class="dot" style="background:${blocked ? 'var(--bad)' : 'var(--good)'}"></span>Passing line from the ball: <strong>${blocked ? 'blocked' : 'open'}</strong>`;
@@ -489,10 +598,10 @@ function render() {
   $('#g-ghost').innerHTML = ghost;
   $('#legend').innerHTML = legend;
 
-  $('#g-them').innerHTML = c.them.map((p, i) => tok('them' + (state.moveAll ? '' : ' locked'), 'them:' + i, p, 3.7, '')).join('');
+  $('#g-them').innerHTML = c.them.map((p, i) => tok('them', 'them:' + i, p, 3.7, '')).join('');
   $('#g-us').innerHTML = POS.filter(p => p.k !== k).map(p => tok('us', 'us:' + p.k, c.us[p.k], 4.1, p.k)).join('')
     + tok('us sel', 'us:' + k, me, 4.6, k, '<circle class="halo" r="6.6"></circle>');
-  $('#g-ball').innerHTML = tok('ball' + (state.moveAll ? '' : ' locked'), 'ball', c.ball, 1.9, '', '') .replace('</g>', '<circle class="patch" r=".7"></circle></g>');
+  $('#g-ball').innerHTML = tok('ball', 'ball', c.ball, 1.9, '', '') .replace('</g>', '<circle class="patch" r=".7"></circle></g>');
   $('#g-draw').innerHTML = state.strokes.map(st => `<path class="stroke" d="M${st.map(p => f(p[0]) + ' ' + f(p[1])).join(' L')}"></path>`).join('');
 
   // Coaching card
@@ -500,17 +609,17 @@ function render() {
   const a = $('#answer');
   $('#check').textContent = state.revealed ? 'Hide answer' : 'Check';
   if (!state.revealed) {
-    a.innerHTML = k === s.carrier
+    a.innerHTML = k === car
       ? `<h2>${P.name}: you have the ball</h2><p>Talk through the options. Who is free? Where is the space? Tap Check to see the coaching point.</p>`
-      : `<h2>Where should the ${P.name} be?</h2><p>Drag the gold <strong>${k}</strong> to the spot you would choose, then tap Check.</p><p class="hint">Tap any blue player to switch. Use Draw to sketch runs and passes; Reset clears them.</p>`;
+      : `<h2>Where should the ${P.name} be?</h2><p>Drag the gold <strong>${k}</strong> to the spot you would choose, then tap Check.</p><p class="hint">Drag the ball or any red player to change the picture. Tap a blue player to switch position. Reset puts everything back.</p>`;
   } else {
     const d = Math.hypot(ide[0] - me[0], ide[1] - me[1]);
     const m = Math.round(d * 0.55);
-    const [cls, word] = k === s.carrier ? ['good', 'On the ball'] : d <= 7 ? ['good', 'Spot on'] : d <= 15 ? ['warn', 'Close'] : ['bad', 'Have another look'];
-    const metres = k === s.carrier ? '' : `<span class="metres">${m <= 2 ? 'right there' : 'about ' + m + ' m away'}</span>`;
-    a.innerHTML = `<div><span class="badge ${cls}">${word}</span>${metres}</div><h2>${P.name}</h2><p>${ide[2]}</p>`;
+    const [cls, word] = k === car ? ['good', 'On the ball'] : d <= 7 ? ['good', 'Spot on'] : d <= 15 ? ['warn', 'Close'] : ['bad', 'Have another look'];
+    const metres = k === car ? '' : `<span class="metres">${m <= 2 ? 'right there' : 'about ' + m + ' m away'}</span>`;
+    a.innerHTML = `<div><span class="badge ${cls}">${word}</span>${metres}</div><h2>${P.name}</h2><p>${ide[2]}</p>${adapted() && !s.free ? '<p class="hint">You moved the ball, so this answer is worked out from where the ball is now.</p>' : s.free ? '<p class="hint">Free play answers are rules of thumb worked out from the ball. Use them to start the conversation.</p>' : ''}`;
   }
-  $('#showme').disabled = k === s.carrier;
+  $('#showme').disabled = k === car;
 }
 
 // Dragging and drawing
@@ -532,7 +641,7 @@ svg.addEventListener('pointerdown', e => {
   if (id.startsWith('us:')) {
     const k = id.slice(3);
     if (k !== state.pos && !state.moveAll) { selectPos(k); return; }
-  } else if (!state.moveAll) return;
+  }
   const cur = getPt(id);
   drag = { id, off: [cur[0] - p[0], cur[1] - p[1]] };
   svg.setPointerCapture(e.pointerId); e.preventDefault();
@@ -544,10 +653,12 @@ svg.addEventListener('pointermove', e => {
   const np = [p[0] + drag.off[0], p[1] + drag.off[1]];
   const old = getPt(drag.id);
   // The ball travels with the player who has it
-  if (drag.id === 'us:' + sc().carrier && Math.hypot(old[0] - state.cur.ball[0], old[1] - state.cur.ball[1]) < 4) {
-    state.cur.ball = [state.cur.ball[0] + np[0] - old[0], state.cur.ball[1] + np[1] - old[1]];
-  }
-  setPt(drag.id, np); render();
+  const carried = (drag.id === 'us:' + carrier() || drag.id.startsWith('them:')) && Math.hypot(old[0] - state.cur.ball[0], old[1] - state.cur.ball[1]) < 4;
+  if (carried) state.cur.ball = [state.cur.ball[0] + np[0] - old[0], state.cur.ball[1] + np[1] - old[1]];
+  setPt(drag.id, np);
+  // Moving the ball or their players moves our team (unless the coach is placing everyone by hand)
+  if (!state.moveAll && (drag.id === 'ball' || drag.id.startsWith('them:'))) { reflow(); state.revealed = false; }
+  render();
 });
 const endDrag = () => { drag = null; };
 svg.addEventListener('pointerup', endDrag);
@@ -591,5 +702,6 @@ $('#reset').addEventListener('click', () => loadScenario(state.si));
 loadScenario(state.si);
 </script>
 
+<script src="pwa.js"></script>
 </body>
 </html>

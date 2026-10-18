@@ -443,7 +443,6 @@ const isAndroid = /Android/i.test(navigator.userAgent);
 const installDismissed = () => { try { return localStorage.getItem('coach-hub-install') === 'no'; } catch (e) { return false; } };
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (route()[0] === 'plan' || !location.hash) render(); });
 window.addEventListener('appinstalled', () => { installEvt = null; toast('Installed. Open Coach Hub from your home screen.'); render(); });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 function installCard() {
   if (standalone() || installDismissed()) return '';
   if (installEvt) return `<div class="card install"><div class="grow"><h3>Install Coach Hub</h3><p class="muted small">Adds it to your home screen and opens full screen, like a normal app. Works offline at the pitch.</p></div>
